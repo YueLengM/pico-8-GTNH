@@ -8,6 +8,7 @@ import cpw.mods.fml.common.event.FMLServerStartingEvent;
 public class CommonProxy {
 
     public void preInit(FMLPreInitializationEvent event) {
+        ModBlocks.registerBlocks();
         Pico8GtnhMod.LOG.info("Pico-8 GTNH loaded at version " + Tags.VERSION);
     }
 
