@@ -14,6 +14,7 @@ import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.StatCollector;
 
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
@@ -70,7 +71,7 @@ public final class PicoRScreen extends GuiScreen {
                 Pico8GtnhMod.LOG.error("Could not open PICO-8 audio output", exception);
             }
         } catch (IOException | RuntimeException | LinkageError exception) {
-            error = exception.getMessage();
+            error = "gui.pico8.runtime.start_error";
             Pico8GtnhMod.LOG.error("Could not load PICO-8 cartridge " + cartFile, exception);
         }
     }
@@ -80,8 +81,18 @@ public final class PicoRScreen extends GuiScreen {
         drawDefaultBackground();
         if (error != null) {
             drawCenteredString(fontRendererObj, "PICO-8", width / 2, height / 2 - 20, 0xFFFFFFFF);
-            drawCenteredString(fontRendererObj, "PICO-R failed to start", width / 2, height / 2 - 10, 0xFFFF5555);
-            drawCenteredString(fontRendererObj, error, width / 2, height / 2 + 5, 0xFFFFFFFF);
+            drawCenteredString(
+                fontRendererObj,
+                StatCollector.translateToLocal("gui.pico8.runtime.error_title"),
+                width / 2,
+                height / 2 - 10,
+                0xFFFF5555);
+            drawCenteredString(
+                fontRendererObj,
+                StatCollector.translateToLocal(error),
+                width / 2,
+                height / 2 + 5,
+                0xFFFFFFFF);
         } else if (runtime != null) {
             long now = System.nanoTime();
             long frameInterval = NANOS_PER_SECOND / runtime.getFramesPerSecond();
@@ -157,7 +168,7 @@ public final class PicoRScreen extends GuiScreen {
             GL11.glPopMatrix();
             drawCenteredString(
                 fontRendererObj,
-                "Arrows: move    Z/C: O    X: X    Esc: cartridges",
+                StatCollector.translateToLocal("gui.pico8.runtime.controls"),
                 width / 2,
                 top + gameSize + 10,
                 0xFFAAAAAA);
@@ -168,7 +179,7 @@ public final class PicoRScreen extends GuiScreen {
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
         if (keyCode == Keyboard.KEY_ESCAPE) {
-            mc.displayGuiScreen(new Pico8CartridgeScreen());
+            mc.displayGuiScreen(null);
             return;
         }
         super.keyTyped(typedChar, keyCode);
