@@ -7,6 +7,6 @@ public class ClientProxy extends CommonProxy {
     @Override
     public void openPico8Screen() {
         Minecraft.getMinecraft()
-            .displayGuiScreen(new PicoRScreen());
+            .displayGuiScreen(new Pico8CartridgeScreen());
     }
 }

@@ -1,7 +1,8 @@
 package com.yuelengm.pico8gtnh;
 
+import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.file.Files;
 
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.Tessellator;
@@ -16,7 +17,6 @@ import org.lwjgl.opengl.GL11;
  */
 public final class PicoRScreen extends GuiScreen {
 
-    private static final String DEMO_CART = "/assets/pico8gtnh/demo.p8";
     private static final long NANOS_PER_SECOND = 1000000000L;
     private static final int BUTTON_LEFT = 1;
     private static final int BUTTON_RIGHT = 1 << 1;
@@ -26,25 +26,25 @@ public final class PicoRScreen extends GuiScreen {
     private static final int BUTTON_X = 1 << 5;
 
     private final ResourceLocation textureLocation = new ResourceLocation(Pico8GtnhMod.MODID, "pico8_screen");
+    private final File cartFile;
     private PicoRRuntime runtime;
     private DynamicTexture texture;
     private int[] texturePixels;
     private String error;
     private long lastFrameNanos;
 
+    public PicoRScreen(File cartFile) {
+        this.cartFile = cartFile;
+    }
+
     @Override
     public void initGui() {
         try {
             runtime = PicoRRuntime.loadBundled();
-            InputStream cart = PicoRScreen.class.getResourceAsStream(DEMO_CART);
-            if (cart == null) {
-                throw new IOException("Bundled PICO-8 demo cart is missing");
+            if (cartFile == null || !cartFile.isFile()) {
+                throw new IOException("Cartridge file does not exist");
             }
-            try {
-                runtime.loadCart(readAllBytes(cart));
-            } finally {
-                cart.close();
-            }
+            runtime.loadCart(Files.readAllBytes(cartFile.toPath()));
 
             texture = new DynamicTexture(PicoRRuntime.SCREEN_WIDTH, PicoRRuntime.SCREEN_HEIGHT);
             texturePixels = texture.getTextureData();
@@ -55,7 +55,7 @@ public final class PicoRScreen extends GuiScreen {
             lastFrameNanos = System.nanoTime();
         } catch (IOException | RuntimeException exception) {
             error = exception.getMessage();
-            Pico8GtnhMod.LOG.error("Could not start the bundled PICO-R demo", exception);
+            Pico8GtnhMod.LOG.error("Could not load PICO-8 cartridge " + cartFile, exception);
         }
     }
 
@@ -81,7 +81,7 @@ public final class PicoRScreen extends GuiScreen {
             int gameSize = PicoRRuntime.SCREEN_WIDTH * scale;
             int left = (width - gameSize) / 2;
             int top = (height - gameSize) / 2;
-            drawCenteredString(fontRendererObj, "PICO-8", width / 2, top - 18, 0xFFFFFFFF);
+            drawCenteredString(fontRendererObj, cartFile.getName(), width / 2, top - 18, 0xFFFFFFFF);
             mc.getTextureManager()
                 .bindTexture(textureLocation);
             GL11.glPushMatrix();
@@ -92,7 +92,7 @@ public final class PicoRScreen extends GuiScreen {
             GL11.glPopMatrix();
             drawCenteredString(
                 fontRendererObj,
-                "Arrow keys: move    Z: O    X: X    Esc: close",
+                "Arrows: move    Z/C: O    X: X    Esc: cartridges",
                 width / 2,
                 top + gameSize + 10,
                 0xFFAAAAAA);
@@ -103,7 +103,7 @@ public final class PicoRScreen extends GuiScreen {
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
         if (keyCode == Keyboard.KEY_ESCAPE) {
-            mc.displayGuiScreen(null);
+            mc.displayGuiScreen(new Pico8CartridgeScreen());
             return;
         }
         super.keyTyped(typedChar, keyCode);
@@ -128,7 +128,7 @@ public final class PicoRScreen extends GuiScreen {
         if (Keyboard.isKeyDown(Keyboard.KEY_RIGHT)) bits |= BUTTON_RIGHT;
         if (Keyboard.isKeyDown(Keyboard.KEY_UP)) bits |= BUTTON_UP;
         if (Keyboard.isKeyDown(Keyboard.KEY_DOWN)) bits |= BUTTON_DOWN;
-        if (Keyboard.isKeyDown(Keyboard.KEY_Z)) bits |= BUTTON_O;
+        if (Keyboard.isKeyDown(Keyboard.KEY_Z) || Keyboard.isKeyDown(Keyboard.KEY_C)) bits |= BUTTON_O;
         if (Keyboard.isKeyDown(Keyboard.KEY_X)) bits |= BUTTON_X;
         return bits;
     }
@@ -149,13 +149,4 @@ public final class PicoRScreen extends GuiScreen {
         tessellator.draw();
     }
 
-    private static byte[] readAllBytes(InputStream input) throws IOException {
-        java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
-        byte[] buffer = new byte[4096];
-        int count;
-        while ((count = input.read(buffer)) != -1) {
-            output.write(buffer, 0, count);
-        }
-        return output.toByteArray();
-    }
 }
