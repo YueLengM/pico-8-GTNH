@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import com.dylibso.chicory.compiler.MachineFactoryCompiler;
 import com.dylibso.chicory.runtime.ExportFunction;
 import com.dylibso.chicory.runtime.Instance;
 import com.dylibso.chicory.runtime.Memory;
@@ -19,6 +20,8 @@ public final class PicoRRuntime {
     private static final String WASM_RESOURCE = "/assets/pico8gtnh/pico-r.wasm";
     public static final int SCREEN_WIDTH = 128;
     public static final int SCREEN_HEIGHT = 128;
+    public static final int AUDIO_SAMPLE_RATE = 22050;
+    private static final int MAX_AUDIO_SAMPLES = 4096;
     private static final int PIXEL_BUFFER_SIZE = SCREEN_WIDTH * SCREEN_HEIGHT * Integer.BYTES;
 
     private final Instance instance;
@@ -29,6 +32,7 @@ public final class PicoRRuntime {
     private final ExportFunction update;
     private final ExportFunction setButtons;
     private final ExportFunction getPixelBuffer;
+    private final ExportFunction generateAudio;
     private final ExportFunction getFps;
     private boolean cartLoaded;
 
@@ -41,6 +45,7 @@ public final class PicoRRuntime {
         this.update = instance.export("web_update");
         this.setButtons = instance.export("web_set_buttons");
         this.getPixelBuffer = instance.export("web_get_pixel_buffer");
+        this.generateAudio = instance.export("web_generate_audio");
         this.getFps = instance.export("web_get_fps");
     }
 
@@ -51,6 +56,7 @@ public final class PicoRRuntime {
         WasmModule module = Parser.parse(wasm);
         return new PicoRRuntime(
             Instance.builder(module)
+                .withMachineFactory(MachineFactoryCompiler.compile(module))
                 .build());
     }
 
@@ -128,6 +134,34 @@ public final class PicoRRuntime {
             .asIntBuffer()
             .get(pixels);
         return pixels;
+    }
+
+    /**
+     * Generates mono PCM audio samples and converts them to signed 16-bit little-endian data.
+     */
+    public byte[] generateAudio(int sampleCount, float volume) {
+        ensureCartLoaded();
+        if (sampleCount < 0 || sampleCount > MAX_AUDIO_SAMPLES) {
+            throw new IllegalArgumentException("Audio sample count must be between 0 and " + MAX_AUDIO_SAMPLES);
+        }
+        if (sampleCount == 0) {
+            return new byte[0];
+        }
+
+        int pointer = (int) generateAudio.apply(sampleCount)[0];
+        byte[] samples = memory.readBytes(pointer, sampleCount * Float.BYTES);
+        ByteBuffer input = ByteBuffer.wrap(samples)
+            .order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer output = ByteBuffer.allocate(sampleCount * Short.BYTES)
+            .order(ByteOrder.LITTLE_ENDIAN);
+        float safeVolume = Math.max(0.0F, Math.min(1.0F, volume));
+        for (int i = 0; i < sampleCount; i++) {
+            float sample = input.getFloat() * safeVolume;
+            int pcm = Math.round(sample * Short.MAX_VALUE);
+            pcm = Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, pcm));
+            output.putShort((short) pcm);
+        }
+        return output.array();
     }
 
     private void ensureCartLoaded() {

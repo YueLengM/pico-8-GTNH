@@ -36,6 +36,7 @@
 dependencies {
     // Embed the pure-Java WebAssembly runtime so users do not need to install it separately.
     shadowImplementation("com.dylibso.chicory:runtime:1.7.5")
+    shadowImplementation("com.dylibso.chicory:compiler:1.7.5")
 
     implementation("com.github.GTNewHorizons:ModularUI2:2.3.91-1.7.10:dev")
 

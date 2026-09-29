@@ -4,6 +4,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
+import javax.sound.sampled.LineUnavailableException;
+
+import net.minecraft.client.audio.SoundCategory;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -18,6 +21,7 @@ import org.lwjgl.opengl.GL11;
 public final class PicoRScreen extends GuiScreen {
 
     private static final long NANOS_PER_SECOND = 1000000000L;
+    private static final int MAX_CATCH_UP_FRAMES = 4;
     private static final int BUTTON_LEFT = 1;
     private static final int BUTTON_RIGHT = 1 << 1;
     private static final int BUTTON_UP = 1 << 2;
@@ -30,6 +34,8 @@ public final class PicoRScreen extends GuiScreen {
     private PicoRRuntime runtime;
     private DynamicTexture texture;
     private int[] texturePixels;
+    private PicoRAudioOutput audioOutput;
+    private int audioSampleRemainder;
     private String error;
     private long lastFrameNanos;
 
@@ -53,6 +59,11 @@ public final class PicoRScreen extends GuiScreen {
             runtime.update();
             copyFrameToTexture();
             lastFrameNanos = System.nanoTime();
+            try {
+                audioOutput = new PicoRAudioOutput();
+            } catch (LineUnavailableException | IllegalArgumentException exception) {
+                Pico8GtnhMod.LOG.error("Could not open PICO-8 audio output", exception);
+            }
         } catch (IOException | RuntimeException exception) {
             error = exception.getMessage();
             Pico8GtnhMod.LOG.error("Could not load PICO-8 cartridge " + cartFile, exception);
@@ -69,11 +80,19 @@ public final class PicoRScreen extends GuiScreen {
         } else if (runtime != null) {
             long now = System.nanoTime();
             long frameInterval = NANOS_PER_SECOND / runtime.getFramesPerSecond();
-            if (now - lastFrameNanos >= frameInterval) {
+            long overdueFrames = (now - lastFrameNanos) / frameInterval;
+            if (overdueFrames > 0) {
+                int framesToRun = (int) Math.min(overdueFrames, MAX_CATCH_UP_FRAMES);
                 runtime.setButtons(0, readButtonBits());
-                runtime.update();
+                for (int frame = 0; frame < framesToRun; frame++) {
+                    runtime.update();
+                    queueAudioFrame();
+                }
                 copyFrameToTexture();
-                lastFrameNanos = now;
+                lastFrameNanos += frameInterval * framesToRun;
+                if (now - lastFrameNanos >= frameInterval) {
+                    lastFrameNanos = now;
+                }
             }
 
             int scale = Math
@@ -111,6 +130,10 @@ public final class PicoRScreen extends GuiScreen {
 
     @Override
     public void onGuiClosed() {
+        if (audioOutput != null) {
+            audioOutput.close();
+            audioOutput = null;
+        }
         if (texture != null) {
             mc.getTextureManager()
                 .deleteTexture(textureLocation);
@@ -137,6 +160,24 @@ public final class PicoRScreen extends GuiScreen {
         int[] pixels = runtime.getPixels();
         System.arraycopy(pixels, 0, texturePixels, 0, pixels.length);
         texture.updateDynamicTexture();
+    }
+
+    private void queueAudioFrame() {
+        if (audioOutput == null) {
+            return;
+        }
+
+        int framesPerSecond = runtime.getFramesPerSecond();
+        int sampleCount = PicoRRuntime.AUDIO_SAMPLE_RATE / framesPerSecond;
+        audioSampleRemainder += PicoRRuntime.AUDIO_SAMPLE_RATE % framesPerSecond;
+        if (audioSampleRemainder >= framesPerSecond) {
+            sampleCount++;
+            audioSampleRemainder -= framesPerSecond;
+        }
+
+        float masterVolume = mc.gameSettings.getSoundLevel(SoundCategory.MASTER);
+        float recordsVolume = mc.gameSettings.getSoundLevel(SoundCategory.RECORDS);
+        audioOutput.submit(runtime.generateAudio(sampleCount, masterVolume * recordsVolume));
     }
 
     private void drawScreenTexture() {
