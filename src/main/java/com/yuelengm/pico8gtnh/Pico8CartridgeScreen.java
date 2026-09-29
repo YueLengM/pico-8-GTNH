@@ -3,8 +3,6 @@ package com.yuelengm.pico8gtnh;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Locale;
@@ -24,9 +22,8 @@ public final class Pico8CartridgeScreen extends GuiScreen {
     private static final int BUTTON_NEXT = 4;
     private static final int FIRST_CART_BUTTON = 100;
     private static final int CART_ROW_HEIGHT = 22;
-    private static final String DEMO_RESOURCE = "/assets/pico8gtnh/demo.p8";
 
-    private final File cartsDirectory = new File(Minecraft.getMinecraft().mcDataDir, "pico8gtnh/carts");
+    private final File cartsDirectory = new File(Minecraft.getMinecraft().mcDataDir, "pico8carts");
     private File[] carts = new File[0];
     private File selectedCart;
     private String statusMessage;
@@ -119,7 +116,6 @@ public final class Pico8CartridgeScreen extends GuiScreen {
             if (!cartsDirectory.isDirectory() && !cartsDirectory.mkdirs()) {
                 throw new IOException("Could not create cartridge folder: " + cartsDirectory);
             }
-            installDemoCartIfMissing();
             File[] files = cartsDirectory.listFiles(new FilenameFilter() {
 
                 @Override
@@ -148,22 +144,6 @@ public final class Pico8CartridgeScreen extends GuiScreen {
             carts = new File[0];
             statusMessage = exception.getMessage();
             Pico8GtnhMod.LOG.error("Could not read PICO-8 cartridge folder", exception);
-        }
-    }
-
-    private void installDemoCartIfMissing() throws IOException {
-        File demoFile = new File(cartsDirectory, "demo.p8");
-        if (demoFile.exists()) {
-            return;
-        }
-        InputStream demoResource = Pico8CartridgeScreen.class.getResourceAsStream(DEMO_RESOURCE);
-        if (demoResource == null) {
-            throw new IOException("Bundled demo cartridge is missing");
-        }
-        try {
-            Files.copy(demoResource, demoFile.toPath());
-        } finally {
-            demoResource.close();
         }
     }
 
