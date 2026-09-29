@@ -34,9 +34,8 @@
  * For more details, see https://docs.gradle.org/8.0.1/userguide/java_library_plugin.html#sec:java_library_configurations_graph
  */
 dependencies {
-    // Embed the pure-Java WebAssembly runtime so users do not need to install it separately.
-    shadowImplementation("com.dylibso.chicory:runtime:1.7.5")
-    shadowImplementation("com.dylibso.chicory:compiler:1.7.5")
+    // Embed Wasmtime so PICO-R uses the native WebAssembly JIT instead of a Java interpreter.
+    shadowImplementation("io.github.kawamuray.wasmtime:wasmtime-java:0.19.0")
 
     implementation("com.github.GTNewHorizons:ModularUI2:2.3.91-1.7.10:dev")
 
