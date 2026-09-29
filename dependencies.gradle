@@ -34,6 +34,9 @@
  * For more details, see https://docs.gradle.org/8.0.1/userguide/java_library_plugin.html#sec:java_library_configurations_graph
  */
 dependencies {
+    // Embed the pure-Java WebAssembly runtime so users do not need to install it separately.
+    shadowImplementation("com.dylibso.chicory:runtime:1.7.5")
+
     implementation("com.github.GTNewHorizons:ModularUI2:2.3.91-1.7.10:dev")
 
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:GTNHLib:0.11.51:dev")
