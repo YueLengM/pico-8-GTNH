@@ -1,7 +1,6 @@
 tile.pico8gtnh.pico8.name=PICO-8
 gui.pico8.carts.title=PICO-8
-gui.pico8.carts.subtitle=Choose a cart, then press Load
-gui.pico8.carts.empty=No cartridges found. Add .p8 or .p8.png files to cart folder.
+gui.pico8.carts.empty=No cartridges found.\nAdd .p8 or .p8.png files to cart folder.
 gui.pico8.carts.load=Load
 gui.pico8.carts.refresh=Refresh
 gui.pico8.carts.open_folder=Open cart folder
@@ -13,4 +12,4 @@ gui.pico8.carts.open_folder_error=Could not open the cartridge folder on this sy
 gui.pico8.carts.open_browser_error=Could not open the browser on this system.
 gui.pico8.runtime.error_title=PICO-R failed to start
 gui.pico8.runtime.start_error=Could not start the PICO-8 runtime. See the log for details.
-gui.pico8.runtime.controls=Arrows: move    Z/C: O    X: X    Esc: Exit
+gui.pico8.runtime.controls=Arrows: move    Z/C: O    X: X    Esc: Close

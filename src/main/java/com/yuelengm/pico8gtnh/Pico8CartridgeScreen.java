@@ -1,21 +1,37 @@
 package com.yuelengm.pico8gtnh;
 
 import java.awt.Desktop;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
+
+import javax.imageio.ImageIO;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.util.StatCollector;
+import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.client.renderer.texture.ITextureObject;
+import net.minecraft.util.EnumChatFormatting;
+import net.minecraft.util.ResourceLocation;
 
+import com.cleanroommc.modularui.api.GuiAxis;
 import com.cleanroommc.modularui.api.drawable.IKey;
+import com.cleanroommc.modularui.api.widget.Interactable;
+import com.cleanroommc.modularui.drawable.GuiDraw;
+import com.cleanroommc.modularui.drawable.GuiTextures;
+import com.cleanroommc.modularui.drawable.Rectangle;
+import com.cleanroommc.modularui.drawable.UITexture;
 import com.cleanroommc.modularui.factory.ClientGUI;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.ModularScreen;
+import com.cleanroommc.modularui.utils.Alignment;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
 import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.TextWidget;
@@ -26,11 +42,17 @@ public final class Pico8CartridgeScreen {
 
     private static final URI BROWSE_CARTS_URI = URI
         .create("https://www.lexaloffle.com/bbs/?cat=7#sub=2&mode=carts&orderby=featured");
+    private static final int P8_PNG_ICON_X = 16;
+    private static final int P8_PNG_ICON_Y = 24;
+    private static final int P8_PNG_ICON_SIZE = 128;
+    private static final ResourceLocation UNKNOWN_PACK_ICON = new ResourceLocation("textures/misc/unknown_pack.png");
 
-    private final File cartsDirectory = new File(Minecraft.getMinecraft().mcDataDir, "pico8carts");
+    private final Minecraft minecraft = Minecraft.getMinecraft();
+    private final File cartsDirectory = new File(this.minecraft.mcDataDir, "pico8carts");
+    private final Map<File, ResourceLocation> cartIcons = new HashMap<>();
+    private final Map<ResourceLocation, DynamicTexture> dynamicTextures = new HashMap<>();
     private File[] carts = new File[0];
     private File selectedCart;
-    private String statusMessageKey;
 
     private Pico8CartridgeScreen() {}
 
@@ -42,82 +64,96 @@ public final class Pico8CartridgeScreen {
     }
 
     private ModularPanel buildPanel() {
-        ModularPanel panel = ModularPanel.defaultPanel("pico8_carts", 360, 300)
+        ScaledResolution resolution = new ScaledResolution(
+            this.minecraft,
+            this.minecraft.displayWidth,
+            this.minecraft.displayHeight);
+        int panelWidth = Math.max(220, Math.min(360, resolution.getScaledWidth() - 24));
+        int panelHeight = Math.max(150, Math.min(270, resolution.getScaledHeight() - 24));
+
+        ModularPanel panel = ModularPanel.defaultPanel("pico8_carts", panelWidth, panelHeight)
             .padding(8)
             .child(
                 Flow.column()
                     .sizeRel(1f)
                     .child(
-                        new TextWidget<>(IKey.lang("gui.pico8.carts.title")).height(18)
-                            .widthRel(1f))
-                    .child(
-                        new TextWidget<>(IKey.lang("gui.pico8.carts.subtitle")).height(14)
-                            .widthRel(1f))
-                    .child(
-                        new TextWidget<>(
-                            IKey.dynamic(
-                                () -> {
-                                    return this.carts.length == 0
-                                        ? StatCollector.translateToLocal("gui.pico8.carts.empty")
-                                        : "";
-                                })).height(14)
-                                    .widthRel(1f))
-                    .child(
-                        new TextWidget<>(
-                            IKey.dynamic(
-                                () -> { return this.carts.length == 0 ? this.cartsDirectory.getAbsolutePath() : ""; }))
-                                    .height(14)
-                                    .widthRel(1f))
-                    .child(
-                        new ListWidget<>().widthRel(1f)
-                            .expanded()
-                            .children(Arrays.asList(this.carts), this::createCartButton))
-                    .child(new TextWidget<>(IKey.dynamic(() -> {
-                        return this.selectedCart == null
-                            ? StatCollector.translateToLocal("gui.pico8.carts.no_selection")
-                            : this.selectedCart.getName();
-                    })).height(14)
-                        .widthRel(1f))
-                    .child(
-                        new TextWidget<>(
-                            IKey.dynamic(
-                                () -> {
-                                    return this.statusMessageKey == null ? ""
-                                        : StatCollector.translateToLocal(this.statusMessageKey);
-                                })).height(14)
-                                    .widthRel(1f))
+                        carts.length == 0 ? new TextWidget<>(IKey.lang("gui.pico8.carts.empty")).expanded()
+                            .widthRel(1f)
+                            .textAlign(Alignment.CENTER)
+                            : new ListWidget<>().widthRel(1f)
+                                .expanded()
+                                .background(new Rectangle().color(0xFF202020))
+                                .children(Arrays.asList(this.carts), this::createCartRow))
                     .child(
                         Flow.row()
+                            .childPadding(4)
                             .widthRel(1f)
-                            .height(22)
-                            .child(actionButton("gui.pico8.carts.load", this::loadSelectedCart))
-                            .child(actionButton("gui.pico8.carts.refresh", Pico8CartridgeScreen::open)))
-                    .child(
-                        Flow.row()
-                            .widthRel(1f)
-                            .height(22)
-                            .child(actionButton("gui.pico8.carts.open_folder", this::openCartsFolder))
-                            .child(actionButton("gui.pico8.carts.get_carts", this::browseCarts))));
+                            .height(20)
+                            .marginTop(2)
+                            .child(
+                                new TextWidget<>(IKey.lang("gui.pico8.carts.title")).textAlign(Alignment.CENTER)
+                                    .style(EnumChatFormatting.BOLD)
+                                    .widthRel(0.15f))
+                            .child(createLoadButton().expanded())
+                            .child(actionButton("gui.pico8.carts.refresh", Pico8CartridgeScreen::open).widthRel(0.1f))
+                            .child(actionButton("gui.pico8.carts.open_folder", this::openCartsFolder).widthRel(0.1f))
+                            .child(actionButton("gui.pico8.carts.get_carts", this::browseCarts).widthRel(0.1f))));
         return panel;
     }
 
-    private ButtonWidget<?> createCartButton(File cart) {
-        return new ButtonWidget<>().widthRel(1f)
-            .height(20)
-            .overlay(IKey.dynamic(() -> (cart.equals(this.selectedCart) ? "> " : "") + cart.getName()))
-            .onMousePressed(mouseButton -> {
-                if (mouseButton != 0) {
-                    return false;
-                }
-                this.selectedCart = cart;
-                this.statusMessageKey = null;
-                return true;
-            });
+    private CartridgeRow createCartRow(File cart) {
+        return new CartridgeRow(cart);
+    }
+
+    private final class CartridgeRow extends Flow implements Interactable {
+
+        private final File cart;
+
+        private CartridgeRow(File cart) {
+            super(GuiAxis.X);
+            this.cart = cart;
+            widthRel(1f);
+            height(128 + 4);
+            padding(2);
+            crossAxisAlignment(Alignment.CrossAxis.CENTER);
+            ResourceLocation icon = cartIcons.get(cart);
+            child(
+                new CartIcon(icon, dynamicTextures.get(icon)).asWidget()
+                    .size(128)
+                    .marginRight(4));
+            child(
+                new TextWidget<>(IKey.str(cart.getName())).expanded()
+                    .height(40)
+                    .textAlign(Alignment.CenterLeft)
+                    .style(EnumChatFormatting.WHITE));
+            background((context, x, y, width, height, widgetTheme) -> drawRowBackground(cart, x, y, width, height));
+        }
+
+        @Override
+        public Interactable.Result onMousePressed(int mouseButton) {
+            if (mouseButton != 0) {
+                return Interactable.Result.IGNORE;
+            }
+            selectedCart = this.cart;
+            return Interactable.Result.SUCCESS;
+        }
+    }
+
+    private void drawRowBackground(File cart, float x, float y, float width, float height) {
+        boolean selected = cart.equals(this.selectedCart);
+        int background = selected ? 0xFF363636 : 0xFF292929;
+        int topLeftEdge = selected ? 0xFFFFD34E : 0xFF505050;
+        int bottomRightEdge = selected ? 0xFFFFD34E : 0xFF171717;
+
+        GuiDraw.drawRect(x, y, width, height, background);
+        GuiDraw.drawRect(x, y, width, 1, topLeftEdge);
+        GuiDraw.drawRect(x, y, 1, height, topLeftEdge);
+        GuiDraw.drawRect(x, y + height - 1, width, 1, bottomRightEdge);
+        GuiDraw.drawRect(x + width - 1, y, 1, height, bottomRightEdge);
     }
 
     private static ButtonWidget<?> actionButton(String translationKey, Runnable action) {
-        return new ButtonWidget<>().expanded()
-            .height(20)
+        return new ButtonWidget<>().height(20)
             .overlay(IKey.lang(translationKey))
             .onMousePressed(mouseButton -> {
                 if (mouseButton != 0) {
@@ -128,9 +164,30 @@ public final class Pico8CartridgeScreen {
             });
     }
 
+    private ButtonWidget<?> createLoadButton() {
+        return new ButtonWidget<>().height(20)
+            .background((context, x, y, width, height, widgetTheme) -> {
+                UITexture buttonTexture = this.selectedCart == null ? GuiTextures.MC_BUTTON_DISABLED
+                    : GuiTextures.MC_BUTTON;
+                buttonTexture.draw(context, x, y, width, height, widgetTheme);
+            })
+            .hoverBackground((context, x, y, width, height, widgetTheme) -> {
+                UITexture buttonTexture = this.selectedCart == null ? GuiTextures.MC_BUTTON_DISABLED
+                    : GuiTextures.MC_BUTTON_HOVERED;
+                buttonTexture.draw(context, x, y, width, height, widgetTheme);
+            })
+            .overlay(IKey.lang("gui.pico8.carts.load"))
+            .onMousePressed(mouseButton -> {
+                if (mouseButton != 0 || this.selectedCart == null) {
+                    return false;
+                }
+                this.loadSelectedCart();
+                return true;
+            });
+    }
+
     private void loadSelectedCart() {
         if (this.selectedCart == null || !this.selectedCart.isFile()) {
-            this.statusMessageKey = "gui.pico8.carts.select_first";
             return;
         }
         ClientGUI.open(new PicoRScreen(this.selectedCart));
@@ -161,11 +218,71 @@ public final class Pico8CartridgeScreen {
                 }
             });
             this.carts = files;
-            this.statusMessageKey = null;
+            loadCartIcons(files);
         } catch (IOException exception) {
             this.carts = new File[0];
-            this.statusMessageKey = "gui.pico8.carts.folder_error";
             Pico8GtnhMod.LOG.error("Could not read PICO-8 cartridge folder", exception);
+        }
+    }
+
+    private void loadCartIcons(File[] files) {
+        this.cartIcons.clear();
+        for (File cart : files) {
+            ResourceLocation icon = UNKNOWN_PACK_ICON;
+            if (cart.getName()
+                .toLowerCase(Locale.ROOT)
+                .endsWith(".p8.png")) {
+                try {
+                    BufferedImage image = ImageIO.read(cart);
+                    if (image != null && image.getWidth() >= P8_PNG_ICON_X + P8_PNG_ICON_SIZE
+                        && image.getHeight() >= P8_PNG_ICON_Y + P8_PNG_ICON_SIZE) {
+                        BufferedImage cover = image
+                            .getSubimage(P8_PNG_ICON_X, P8_PNG_ICON_Y, P8_PNG_ICON_SIZE, P8_PNG_ICON_SIZE);
+                        icon = createDynamicTexture(
+                            "pico8_cart_" + Integer.toHexString(
+                                cart.getAbsolutePath()
+                                    .hashCode()),
+                            cover);
+                    }
+                    if (image != null) {
+                        image.flush();
+                    }
+                } catch (IOException exception) {
+                    Pico8GtnhMod.LOG.warn("Could not read PICO-8 cartridge cover {}", cart, exception);
+                }
+            }
+            this.cartIcons.put(cart, icon);
+        }
+    }
+
+    private ResourceLocation createDynamicTexture(String name, BufferedImage image) {
+        DynamicTexture texture = new DynamicTexture(image);
+        ResourceLocation location = this.minecraft.getTextureManager()
+            .getDynamicTextureLocation(name, texture);
+        this.dynamicTextures.put(location, texture);
+        return location;
+    }
+
+    private final class CartIcon extends UITexture {
+
+        private final DynamicTexture texture;
+
+        private CartIcon(ResourceLocation location, DynamicTexture texture) {
+            super(location, 0, 0, 1, 1, null);
+            this.texture = texture;
+        }
+
+        @Override
+        public void draw(float x, float y, float width, float height) {
+            if (this.texture != null) {
+                ITextureObject registered = minecraft.getTextureManager()
+                    .getTexture(this.location);
+                if (registered != this.texture) {
+                    minecraft.getTextureManager()
+                        .loadTexture(this.location, this.texture);
+                }
+            }
+            super.draw(x, y, width, height);
         }
     }
 
@@ -179,9 +296,7 @@ public final class Pico8CartridgeScreen {
                 throw new IOException("Opening folders is not supported on this system");
             }
             desktop.open(this.cartsDirectory);
-            this.statusMessageKey = null;
         } catch (IOException | RuntimeException exception) {
-            this.statusMessageKey = "gui.pico8.carts.open_folder_error";
             Pico8GtnhMod.LOG.error("Could not open PICO-8 cartridge folder", exception);
         }
     }
@@ -196,9 +311,7 @@ public final class Pico8CartridgeScreen {
                 throw new IOException("Opening a web browser is not supported on this system");
             }
             desktop.browse(BROWSE_CARTS_URI);
-            this.statusMessageKey = null;
         } catch (IOException | RuntimeException exception) {
-            this.statusMessageKey = "gui.pico8.carts.open_browser_error";
             Pico8GtnhMod.LOG.error("Could not open the PICO-8 carts page", exception);
         }
     }
