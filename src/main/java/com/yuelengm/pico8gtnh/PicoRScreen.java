@@ -24,6 +24,7 @@ import org.lwjgl.opengl.GL11;
 public final class PicoRScreen extends GuiScreen {
 
     private static final long NANOS_PER_SECOND = 1000000000L;
+    private static final int MAX_CATCH_UP_FRAMES = 4;
     private static final List<GarbageCollectorMXBean> GC_COLLECTORS = ManagementFactory.getGarbageCollectorMXBeans();
     private static final int BUTTON_LEFT = 1;
     private static final int BUTTON_RIGHT = 1 << 1;
@@ -84,19 +85,29 @@ public final class PicoRScreen extends GuiScreen {
         } else if (runtime != null) {
             long now = System.nanoTime();
             long frameInterval = NANOS_PER_SECOND / runtime.getFramesPerSecond();
-            if (now - lastFrameNanos >= frameInterval) {
+            long overdueFrames = (now - lastFrameNanos) / frameInterval;
+            if (overdueFrames > 0) {
                 runtime.setButtons(0, readButtonBits());
-                long updateStart = System.nanoTime();
-                runtime.update();
-                long updateNanos = System.nanoTime() - updateStart;
-                long audioStart = System.nanoTime();
-                queueAudioFrame();
-                long audioNanos = System.nanoTime() - audioStart;
+                int framesToRun = (int) Math.min(overdueFrames, MAX_CATCH_UP_FRAMES);
+                long updateNanos = 0;
+                long slowestUpdateNanos = 0;
+                long audioNanos = 0;
+                for (int frame = 0; frame < framesToRun; frame++) {
+                    long updateStart = System.nanoTime();
+                    runtime.update();
+                    long frameUpdateNanos = System.nanoTime() - updateStart;
+                    updateNanos += frameUpdateNanos;
+                    slowestUpdateNanos = Math.max(slowestUpdateNanos, frameUpdateNanos);
+
+                    long audioStart = System.nanoTime();
+                    queueAudioFrame();
+                    audioNanos += System.nanoTime() - audioStart;
+                }
                 long uploadStart = System.nanoTime();
                 copyFrameToTexture();
                 long uploadNanos = System.nanoTime() - uploadStart;
                 long completedAt = System.nanoTime();
-                if (completedAt - updateStart >= frameInterval
+                if (slowestUpdateNanos >= frameInterval
                     && completedAt - lastSlowFrameReportNanos >= 2 * NANOS_PER_SECOND) {
                     Runtime javaRuntime = Runtime.getRuntime();
                     long usedHeapMegabytes = (javaRuntime.totalMemory() - javaRuntime.freeMemory()) / (1024 * 1024);
@@ -111,9 +122,11 @@ public final class PicoRScreen extends GuiScreen {
                         }
                     }
                     Pico8GtnhMod.LOG.warn(
-                        "Slow PICO-8 frame in {}: update={}ms, audio={}ms, texture={}ms, heap={}MB, wasmPages={}, gcCount={}, gcTime={}ms",
+                        "Slow PICO-8 frame in {}: updates={}, updateTotal={}ms, updateMax={}ms, audio={}ms, texture={}ms, heap={}MB, wasmPages={}, gcCount={}, gcTime={}ms",
                         cartFile.getName(),
+                        framesToRun,
                         updateNanos / 1000000,
+                        slowestUpdateNanos / 1000000,
                         audioNanos / 1000000,
                         uploadNanos / 1000000,
                         usedHeapMegabytes,
@@ -122,7 +135,10 @@ public final class PicoRScreen extends GuiScreen {
                         gcTimeMillis);
                     lastSlowFrameReportNanos = completedAt;
                 }
-                lastFrameNanos = now;
+                lastFrameNanos += frameInterval * framesToRun;
+                if (now - lastFrameNanos >= frameInterval) {
+                    lastFrameNanos = now;
+                }
             }
 
             int scale = Math
