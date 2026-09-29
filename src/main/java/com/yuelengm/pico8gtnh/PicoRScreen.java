@@ -62,8 +62,8 @@ public final class PicoRScreen extends GuiScreen {
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawDefaultBackground();
-        drawCenteredString(fontRendererObj, "PICO-8", width / 2, height / 2 - 150, 0xFFFFFFFF);
         if (error != null) {
+            drawCenteredString(fontRendererObj, "PICO-8", width / 2, height / 2 - 20, 0xFFFFFFFF);
             drawCenteredString(fontRendererObj, "PICO-R failed to start", width / 2, height / 2 - 10, 0xFFFF5555);
             drawCenteredString(fontRendererObj, error, width / 2, height / 2 + 5, 0xFFFFFFFF);
         } else if (runtime != null) {
@@ -76,13 +76,17 @@ public final class PicoRScreen extends GuiScreen {
                 lastFrameNanos = now;
             }
 
-            int left = width / 2 - 256;
-            int top = height / 2 - 256;
+            int scale = Math
+                .max(1, Math.min((width - 32) / PicoRRuntime.SCREEN_WIDTH, (height - 70) / PicoRRuntime.SCREEN_HEIGHT));
+            int gameSize = PicoRRuntime.SCREEN_WIDTH * scale;
+            int left = (width - gameSize) / 2;
+            int top = (height - gameSize) / 2;
+            drawCenteredString(fontRendererObj, "PICO-8", width / 2, top - 18, 0xFFFFFFFF);
             mc.getTextureManager()
                 .bindTexture(textureLocation);
             GL11.glPushMatrix();
             GL11.glTranslatef(left, top, 0.0F);
-            GL11.glScalef(4.0F, 4.0F, 1.0F);
+            GL11.glScalef(scale, scale, 1.0F);
             GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
             drawScreenTexture();
             GL11.glPopMatrix();
@@ -90,7 +94,7 @@ public final class PicoRScreen extends GuiScreen {
                 fontRendererObj,
                 "Arrow keys: move    Z: O    X: X    Esc: close",
                 width / 2,
-                top + 530,
+                top + gameSize + 10,
                 0xFFAAAAAA);
         }
         super.drawScreen(mouseX, mouseY, partialTicks);
