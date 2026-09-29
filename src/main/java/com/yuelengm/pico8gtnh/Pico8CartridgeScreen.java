@@ -98,7 +98,6 @@ public final class Pico8CartridgeScreen {
                             .height(22)
                             .child(actionButton("gui.pico8.carts.open_folder", this::openCartsFolder))
                             .child(actionButton("gui.pico8.carts.get_carts", this::browseCarts))));
-        panel.child(ButtonWidget.panelCloseButton());
         return panel;
     }
 
