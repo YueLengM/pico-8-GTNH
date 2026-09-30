@@ -3,8 +3,10 @@ package com.yuelengm.pico8gtnh;
 import java.awt.Desktop;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -200,8 +202,12 @@ public final class Pico8CartridgeScreen implements GuiYesNoCallback {
 
     private void refreshCarts() {
         try {
+            boolean createCartsDirectory = !this.cartsDirectory.exists();
             if (!this.cartsDirectory.isDirectory() && !this.cartsDirectory.mkdirs()) {
                 throw new IOException("Could not create cartridge folder: " + this.cartsDirectory);
+            }
+            if (createCartsDirectory) {
+                copyBundledCartridge("/assets/pico8gtnh/Celeste.p8.png", "Celeste.p8.png");
             }
             File[] files = this.cartsDirectory.listFiles(new FilenameFilter() {
 
@@ -227,6 +233,22 @@ public final class Pico8CartridgeScreen implements GuiYesNoCallback {
         } catch (IOException exception) {
             this.carts = new File[0];
             Pico8GtnhMod.LOG.error("Could not read PICO-8 cartridge folder", exception);
+        }
+    }
+
+    private void copyBundledCartridge(String resourcePath, String fileName) throws IOException {
+        InputStream input = Pico8CartridgeScreen.class.getResourceAsStream(resourcePath);
+        if (input == null) {
+            throw new IOException("Bundled PICO-8 cartridge is missing: " + resourcePath);
+        }
+
+        File destination = new File(this.cartsDirectory, fileName);
+        try (InputStream cartridge = input; FileOutputStream output = new FileOutputStream(destination)) {
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = cartridge.read(buffer)) != -1) {
+                output.write(buffer, 0, bytesRead);
+            }
         }
     }
 
