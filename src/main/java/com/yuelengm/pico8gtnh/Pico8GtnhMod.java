@@ -12,10 +12,10 @@ import cpw.mods.fml.common.event.FMLPostInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
 
-@Mod(modid = Pico8GtnhMod.MODID, version = Tags.VERSION, name = "Pico-8 GTNH", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(modid = Pico8GtnhMod.MODID, version = Tags.VERSION, name = "PICO-8", acceptedMinecraftVersions = "[1.7.10]")
 public class Pico8GtnhMod {
 
-    public static final String MODID = "pico8gtnh";
+    public static final String MODID = "pico8";
     public static final Logger LOG = LogManager.getLogger(MODID);
 
     @SidedProxy(

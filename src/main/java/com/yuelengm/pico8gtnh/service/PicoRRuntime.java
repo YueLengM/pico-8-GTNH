@@ -20,7 +20,7 @@ import io.github.kawamuray.wasmtime.Val;
 /** Java host for PICO-R's WebAssembly interface. */
 public final class PicoRRuntime implements AutoCloseable {
 
-    private static final String WASM_RESOURCE = "/assets/pico8gtnh/pico-r.wasm";
+    private static final String WASM_RESOURCE = "/assets/pico8/pico-r.wasm";
     public static final int SCREEN_WIDTH = 128;
     public static final int SCREEN_HEIGHT = 128;
     public static final int AUDIO_SAMPLE_RATE = 22050;

@@ -48,7 +48,7 @@ public final class CartService {
         if (!this.cartsDirectory.mkdirs()) {
             throw new IOException("Could not create cartridge folder: " + this.cartsDirectory);
         }
-        copyBundledCartridge("/assets/pico8gtnh/Celeste.p8.png", "Celeste.p8.png");
+        copyBundledCartridge("/assets/pico8/Celeste.p8.png", "Celeste.p8.png");
     }
 
     private void copyBundledCartridge(String resourcePath, String fileName) throws IOException {

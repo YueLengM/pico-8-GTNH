@@ -13,7 +13,7 @@ public class Pico8ConsoleBlock extends Block {
 
     public Pico8ConsoleBlock() {
         super(new Material(MapColor.airColor));
-        setBlockName("pico8gtnh.pico8");
+        setBlockName("pico8.pico8_console");
         setHardness(1F);
         setResistance(1F);
         setStepSound(Block.soundTypeGlass);
