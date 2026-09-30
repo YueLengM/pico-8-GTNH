@@ -1,4 +1,4 @@
-package com.yuelengm.pico8gtnh;
+package com.yuelengm.pico8gtnh.block;
 
 import net.minecraft.block.Block;
 
@@ -6,7 +6,7 @@ import cpw.mods.fml.common.registry.GameRegistry;
 
 public final class ModBlocks {
 
-    public static final Block PICO8 = new Pico8MachineBlock();
+    public static final Block PICO8 = new Pico8ConsoleBlock();
 
     private ModBlocks() {}
 

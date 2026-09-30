@@ -1,4 +1,4 @@
-package com.yuelengm.pico8gtnh;
+package com.yuelengm.pico8gtnh.service;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -8,8 +8,10 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.SourceDataLine;
 
+import com.yuelengm.pico8gtnh.Pico8GtnhMod;
+
 /** Streams generated PICO-R PCM samples to the system audio device. */
-final class PicoRAudioOutput implements AutoCloseable {
+public final class PicoRAudioOutput implements AutoCloseable {
 
     private static final AudioFormat FORMAT = new AudioFormat(PicoRRuntime.AUDIO_SAMPLE_RATE, 16, 1, true, false);
     private static final int QUEUE_CAPACITY = 8;
@@ -19,7 +21,7 @@ final class PicoRAudioOutput implements AutoCloseable {
     private final Thread outputThread;
     private volatile boolean running = true;
 
-    PicoRAudioOutput() throws LineUnavailableException {
+    public PicoRAudioOutput() throws LineUnavailableException {
         line = AudioSystem.getSourceDataLine(FORMAT);
         line.open(FORMAT, PicoRRuntime.AUDIO_SAMPLE_RATE);
         line.start();
@@ -29,7 +31,7 @@ final class PicoRAudioOutput implements AutoCloseable {
         outputThread.start();
     }
 
-    void submit(byte[] pcm) {
+    public void submit(byte[] pcm) {
         if (running && pcm.length > 0 && !queue.offer(pcm)) {
             queue.poll();
             queue.offer(pcm);

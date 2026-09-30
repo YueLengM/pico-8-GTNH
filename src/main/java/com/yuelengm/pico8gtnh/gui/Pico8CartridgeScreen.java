@@ -1,15 +1,13 @@
-package com.yuelengm.pico8gtnh;
+package com.yuelengm.pico8gtnh.gui;
 
 import java.awt.Desktop;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -23,6 +21,8 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.ITextureObject;
 import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.ResourceLocation;
+
+import org.jetbrains.annotations.NotNull;
 
 import com.cleanroommc.modularui.api.GuiAxis;
 import com.cleanroommc.modularui.api.drawable.IKey;
@@ -39,6 +39,7 @@ import com.cleanroommc.modularui.widgets.ButtonWidget;
 import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.TextWidget;
 import com.cleanroommc.modularui.widgets.layout.Flow;
+import com.yuelengm.pico8gtnh.Pico8GtnhMod;
 
 /** Builds the MUI2 screen for choosing a local PICO-8 cartridge. */
 public final class Pico8CartridgeScreen implements GuiYesNoCallback {
@@ -67,7 +68,7 @@ public final class Pico8CartridgeScreen implements GuiYesNoCallback {
     }
 
     private ModularPanel buildPanel() {
-        ModularPanel panel = ModularPanel.defaultPanel("pico8_carts")
+        return ModularPanel.defaultPanel("pico8_carts")
             .widthRel(0.8f)
             .heightRel(0.8f)
             .padding(8)
@@ -104,7 +105,6 @@ public final class Pico8CartridgeScreen implements GuiYesNoCallback {
                             .child(
                                 actionButton("icons/world", this::onBrowseCarts).width(20)
                                     .fullHeight())));
-        return panel;
     }
 
     private CartridgeRow createCartRow(File cart) {
@@ -136,12 +136,12 @@ public final class Pico8CartridgeScreen implements GuiYesNoCallback {
         }
 
         @Override
-        public Interactable.Result onMousePressed(int mouseButton) {
+        public @NotNull Result onMousePressed(int mouseButton) {
             if (mouseButton != 0) {
-                return Interactable.Result.IGNORE;
+                return Result.IGNORE;
             }
             selectedCart = this.cart;
-            return Interactable.Result.SUCCESS;
+            return Result.SUCCESS;
         }
     }
 
@@ -209,25 +209,17 @@ public final class Pico8CartridgeScreen implements GuiYesNoCallback {
             if (createCartsDirectory) {
                 copyBundledCartridge("/assets/pico8gtnh/Celeste.p8.png", "Celeste.p8.png");
             }
-            File[] files = this.cartsDirectory.listFiles(new FilenameFilter() {
-
-                @Override
-                public boolean accept(File directory, String name) {
-                    String lowercaseName = name.toLowerCase(Locale.ROOT);
-                    return lowercaseName.endsWith(".p8") || lowercaseName.endsWith(".p8.png");
-                }
+            File[] files = this.cartsDirectory.listFiles((directory, name) -> {
+                String lowercaseName = name.toLowerCase(Locale.ROOT);
+                return lowercaseName.endsWith(".p8") || lowercaseName.endsWith(".p8.png");
             });
             if (files == null) {
                 throw new IOException("Could not read cartridge folder: " + this.cartsDirectory);
             }
-            Arrays.sort(files, new Comparator<File>() {
-
-                @Override
-                public int compare(File first, File second) {
-                    return first.getName()
-                        .compareToIgnoreCase(second.getName());
-                }
-            });
+            Arrays.sort(
+                files,
+                (first, second) -> first.getName()
+                    .compareToIgnoreCase(second.getName()));
             this.carts = files;
             loadCartIcons(files);
         } catch (IOException exception) {

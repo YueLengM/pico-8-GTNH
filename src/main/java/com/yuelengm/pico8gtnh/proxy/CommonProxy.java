@@ -1,4 +1,8 @@
-package com.yuelengm.pico8gtnh;
+package com.yuelengm.pico8gtnh.proxy;
+
+import com.yuelengm.pico8gtnh.Pico8GtnhMod;
+import com.yuelengm.pico8gtnh.Tags;
+import com.yuelengm.pico8gtnh.block.ModBlocks;
 
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;

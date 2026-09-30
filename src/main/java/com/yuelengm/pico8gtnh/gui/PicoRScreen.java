@@ -1,4 +1,4 @@
-package com.yuelengm.pico8gtnh;
+package com.yuelengm.pico8gtnh.gui;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,6 +18,10 @@ import net.minecraft.util.StatCollector;
 
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
+
+import com.yuelengm.pico8gtnh.Pico8GtnhMod;
+import com.yuelengm.pico8gtnh.service.PicoRAudioOutput;
+import com.yuelengm.pico8gtnh.service.PicoRRuntime;
 
 /**
  * Basic client screen that hosts the PICO-R frame loop and its pixel buffer.

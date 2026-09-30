@@ -3,6 +3,8 @@ package com.yuelengm.pico8gtnh;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.yuelengm.pico8gtnh.proxy.CommonProxy;
+
 import cpw.mods.fml.common.Mod;
 import cpw.mods.fml.common.SidedProxy;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
@@ -21,7 +23,9 @@ public class Pico8GtnhMod {
     public static final String MODID = "pico8gtnh";
     public static final Logger LOG = LogManager.getLogger(MODID);
 
-    @SidedProxy(clientSide = "com.yuelengm.pico8gtnh.ClientProxy", serverSide = "com.yuelengm.pico8gtnh.CommonProxy")
+    @SidedProxy(
+        clientSide = "com.yuelengm.pico8gtnh.proxy.ClientProxy",
+        serverSide = "com.yuelengm.pico8gtnh.proxy.CommonProxy")
     public static CommonProxy proxy;
 
     @Mod.EventHandler

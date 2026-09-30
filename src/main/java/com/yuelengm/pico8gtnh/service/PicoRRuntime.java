@@ -1,4 +1,4 @@
-package com.yuelengm.pico8gtnh;
+package com.yuelengm.pico8gtnh.service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -10,7 +10,6 @@ import java.nio.IntBuffer;
 import java.util.Collections;
 
 import io.github.kawamuray.wasmtime.Engine;
-import io.github.kawamuray.wasmtime.Extern;
 import io.github.kawamuray.wasmtime.Func;
 import io.github.kawamuray.wasmtime.Instance;
 import io.github.kawamuray.wasmtime.Memory;
@@ -26,7 +25,6 @@ public final class PicoRRuntime implements AutoCloseable {
     public static final int SCREEN_HEIGHT = 128;
     public static final int AUDIO_SAMPLE_RATE = 22050;
     private static final int MAX_AUDIO_SAMPLES = 4096;
-    private static final int PIXEL_BUFFER_SIZE = SCREEN_WIDTH * SCREEN_HEIGHT * Integer.BYTES;
 
     private final Engine engine;
     private final Store<Void> store;
@@ -68,7 +66,7 @@ public final class PicoRRuntime implements AutoCloseable {
         Instance instance = null;
         try {
             module = Module.fromBinary(engine, readAllBytes(wasm));
-            instance = new Instance(store, module, Collections.<Extern>emptyList());
+            instance = new Instance(store, module, Collections.emptyList());
             return new PicoRRuntime(engine, store, module, instance);
         } catch (RuntimeException | LinkageError exception) {
             if (instance != null) {
@@ -86,13 +84,11 @@ public final class PicoRRuntime implements AutoCloseable {
     /** Loads the PICO-R module bundled with this mod. */
     public static PicoRRuntime loadBundled() throws IOException {
         InputStream wasm = PicoRRuntime.class.getResourceAsStream(WASM_RESOURCE);
-        if (wasm == null) {
-            throw new IOException("Bundled PICO-R module is missing: " + WASM_RESOURCE);
-        }
-        try {
+        try (wasm) {
+            if (wasm == null) {
+                throw new IOException("Bundled PICO-R module is missing: " + WASM_RESOURCE);
+            }
             return load(wasm);
-        } finally {
-            wasm.close();
         }
     }
 

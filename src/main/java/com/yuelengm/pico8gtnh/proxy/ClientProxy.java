@@ -1,4 +1,6 @@
-package com.yuelengm.pico8gtnh;
+package com.yuelengm.pico8gtnh.proxy;
+
+import com.yuelengm.pico8gtnh.gui.Pico8CartridgeScreen;
 
 public class ClientProxy extends CommonProxy {
 

@@ -1,4 +1,4 @@
-package com.yuelengm.pico8gtnh;
+package com.yuelengm.pico8gtnh.block;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -6,9 +6,11 @@ import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.world.World;
 
-public class Pico8MachineBlock extends Block {
+import com.yuelengm.pico8gtnh.Pico8GtnhMod;
 
-    public Pico8MachineBlock() {
+public class Pico8ConsoleBlock extends Block {
+
+    public Pico8ConsoleBlock() {
         super(Material.rock);
         setBlockName("pico8gtnh.pico8");
         setBlockTextureName("minecraft:stone");
