@@ -19,6 +19,7 @@
  *
  *  - shadowImplementation("g:n:v:c"): effectively the same as API, but the dependency is included in your jar under a renamed package name
  *       Requires you to enable usesShadowedDependencies in gradle.properties
+ *  - embedOnly("g:n:v:c"): embedded in the jar without relocation
  *
  *  - compile("g:n:v:c"): deprecated, replace with "api" (works like the old "compile") or "implementation" (can be more efficient)
  *
@@ -33,8 +34,21 @@
  *
  * For more details, see https://docs.gradle.org/8.0.1/userguide/java_library_plugin.html#sec:java_library_configurations_graph
  */
+
+configurations {
+    embedOnly {
+        canBeConsumed = false
+        canBeResolved = true
+    }
+}
+
+configurations.compileClasspath.extendsFrom(configurations.embedOnly)
+configurations.testCompileClasspath.extendsFrom(configurations.embedOnly)
+configurations.testRuntimeClasspath.extendsFrom(configurations.embedOnly)
+
 dependencies {
-    shadowImplementation("io.github.kawamuray.wasmtime:wasmtime-java:0.19.0") { transitive = true }
+    embedOnly("io.github.kawamuray.wasmtime:wasmtime-java:0.19.0") { transitive = false }
+    shadowImplementation("org.slf4j:slf4j-api:1.7.25")
 
     implementation("com.github.GTNewHorizons:ModularUI2:2.3.73-1.7.10:dev")
 

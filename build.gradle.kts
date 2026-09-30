@@ -3,6 +3,9 @@ plugins {
     id("com.gtnewhorizons.gtnhconvention")
 }
 
+val embedOnly: Configuration by configurations
+
 tasks.shadowJar {
-    relocate("org.slf4j", "com.yuelengm.pico8gtnh.shadow.org.slf4j")
+    dependsOn(embedOnly)
+    from(embedOnly.map(::zipTree))
 }
