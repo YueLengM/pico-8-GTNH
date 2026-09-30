@@ -6,7 +6,7 @@
 		"description": "Play Pico-8 games inside Minecraft 1.7.10.",
 		"version": "${modVersion}",
 		"mcversion": "${minecraftVersion}",
-		"url": "",
+		"url": "https://github.com/YueLengM/pico-8-GTNH",
 		"updateUrl": "",
 		"authorList": ["YueLeng_M"],
 		"credits": "",
