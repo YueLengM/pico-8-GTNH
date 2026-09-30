@@ -1,6 +1,7 @@
 package com.yuelengm.pico8gtnh.block;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.material.MapColor;
 import net.minecraft.block.material.Material;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.player.EntityPlayer;
@@ -11,13 +12,15 @@ import com.yuelengm.pico8gtnh.Pico8GtnhMod;
 public class Pico8ConsoleBlock extends Block {
 
     public Pico8ConsoleBlock() {
-        super(Material.rock);
+        super(new Material(MapColor.airColor));
         setBlockName("pico8gtnh.pico8");
-        setBlockTextureName("minecraft:stone");
-        setHardness(1.5F);
-        setResistance(10.0F);
-        setStepSound(Block.soundTypeStone);
-        setCreativeTab(CreativeTabs.tabBlock);
+        setHardness(1F);
+        setResistance(1F);
+        setStepSound(Block.soundTypeGlass);
+        setCreativeTab(CreativeTabs.tabDecorations);
+
+        // TODO: custom model
+        setBlockTextureName("minecraft:redstone_lamp_on");
     }
 
     @Override
