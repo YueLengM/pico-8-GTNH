@@ -13,9 +13,9 @@
 		"logoFile": "",
 		"screenshots": [],
 		"parent": "",
-		"requiredMods": [],
-		"dependencies": [],
+		"requiredMods": ["falsepatternlib", "modularui2"],
+		"dependencies": ["required-after:falsepatternlib", "required-after:modularui2"],
 		"dependants": [],
-		"useDependencyInformation": false
+		"useDependencyInformation": true
 	}]
 }

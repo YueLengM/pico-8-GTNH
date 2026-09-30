@@ -1,0 +1,25 @@
+{
+  "identifier": "falsepatternlib_dependencies",
+  "repositories": [
+    "https://repo.maven.apache.org/maven2/"
+  ],
+  "dependencies": {
+    "always": {
+      "common": [],
+      "client": [],
+      "server": []
+    },
+    "obf": {
+      "common": [],
+      "client": [
+        "io.github.kawamuray:wasmtime-java:0.19.0"
+      ],
+      "server": []
+    },
+    "dev": {
+      "common": [],
+      "client": [],
+      "server": []
+    }
+  }
+}
