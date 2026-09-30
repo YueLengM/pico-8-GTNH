@@ -76,7 +76,7 @@ public final class PicoRScreen extends GuiScreen {
             }
         } catch (IOException | RuntimeException | LinkageError exception) {
             error = "gui.pico8.runtime.start_error";
-            Pico8GtnhMod.LOG.error("Could not load PICO-8 cartridge " + cartFile, exception);
+            Pico8GtnhMod.LOG.error("Could not load PICO-8 cartridge {}", cartFile, exception);
         }
     }
 
