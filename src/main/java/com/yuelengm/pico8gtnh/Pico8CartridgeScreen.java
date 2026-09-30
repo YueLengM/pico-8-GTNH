@@ -15,6 +15,8 @@ import java.util.Map;
 import javax.imageio.ImageIO;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiConfirmOpenLink;
+import net.minecraft.client.gui.GuiYesNoCallback;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.ITextureObject;
 import net.minecraft.util.EnumChatFormatting;
@@ -37,7 +39,7 @@ import com.cleanroommc.modularui.widgets.TextWidget;
 import com.cleanroommc.modularui.widgets.layout.Flow;
 
 /** Builds the MUI2 screen for choosing a local PICO-8 cartridge. */
-public final class Pico8CartridgeScreen {
+public final class Pico8CartridgeScreen implements GuiYesNoCallback {
 
     private static final URI BROWSE_CARTS_URI = URI
         .create("https://www.lexaloffle.com/bbs/?cat=7#sub=2&mode=carts&orderby=featured");
@@ -98,7 +100,7 @@ public final class Pico8CartridgeScreen {
                                 actionButton("icons/folder", this::openCartsFolder).width(20)
                                     .fullHeight())
                             .child(
-                                actionButton("icons/world", this::browseCarts).width(20)
+                                actionButton("icons/world", this::onBrowseCarts).width(20)
                                     .fullHeight())));
         return panel;
     }
@@ -316,6 +318,24 @@ public final class Pico8CartridgeScreen {
             desktop.browse(BROWSE_CARTS_URI);
         } catch (IOException | RuntimeException exception) {
             Pico8GtnhMod.LOG.error("Could not open the PICO-8 carts page", exception);
+        }
+    }
+
+    private void onBrowseCarts() {
+        if (minecraft.gameSettings.chatLinksPrompt) {
+            minecraft.displayGuiScreen(new GuiConfirmOpenLink(this, BROWSE_CARTS_URI.toASCIIString(), 0, false));
+        } else {
+            browseCarts();
+        }
+    }
+
+    public void confirmClicked(boolean result, int id) {
+        if (id == 0) {
+            if (result) {
+                browseCarts();
+            }
+
+            open();
         }
     }
 }
