@@ -45,6 +45,7 @@ public final class Pico8CartridgeScreen {
     private static final int P8_PNG_ICON_X = 16;
     private static final int P8_PNG_ICON_Y = 24;
     private static final int P8_PNG_ICON_SIZE = 128;
+    private static final int ACTION_ICON_SIZE = 16;
     private static final ResourceLocation UNKNOWN_PACK_ICON = new ResourceLocation("textures/misc/unknown_pack.png");
 
     private final Minecraft minecraft = Minecraft.getMinecraft();
@@ -64,12 +65,14 @@ public final class Pico8CartridgeScreen {
     }
 
     private ModularPanel buildPanel() {
-        ScaledResolution resolution = new ScaledResolution(
-            this.minecraft,
-            this.minecraft.displayWidth,
-            this.minecraft.displayHeight);
-        int panelWidth = Math.max(220, Math.min(360, resolution.getScaledWidth() - 24));
-        int panelHeight = Math.max(150, Math.min(270, resolution.getScaledHeight() - 24));
+//        ScaledResolution resolution = new ScaledResolution(
+//            this.minecraft,
+//            this.minecraft.displayWidth,
+//            this.minecraft.displayHeight);
+//        int panelWidth = Math.max(220, Math.min(360, resolution.getScaledWidth() - 24));
+//        int panelHeight = Math.max(150, Math.min(270, resolution.getScaledHeight() - 24));
+        int panelWidth = 360;
+        int panelHeight = 270;
 
         ModularPanel panel = ModularPanel.defaultPanel("pico8_carts", panelWidth, panelHeight)
             .padding(8)
@@ -86,7 +89,7 @@ public final class Pico8CartridgeScreen {
                                 .children(Arrays.asList(this.carts), this::createCartRow))
                     .child(
                         Flow.row()
-                            .childPadding(4)
+                            .childPadding(2)
                             .widthRel(1f)
                             .height(20)
                             .marginTop(2)
@@ -95,9 +98,9 @@ public final class Pico8CartridgeScreen {
                                     .style(EnumChatFormatting.BOLD)
                                     .widthRel(0.15f))
                             .child(createLoadButton().expanded())
-                            .child(actionButton("gui.pico8.carts.refresh", Pico8CartridgeScreen::open).widthRel(0.1f))
-                            .child(actionButton("gui.pico8.carts.open_folder", this::openCartsFolder).widthRel(0.1f))
-                            .child(actionButton("gui.pico8.carts.get_carts", this::browseCarts).widthRel(0.1f))));
+                            .child(actionButton("icons/refresh", Pico8CartridgeScreen::open).width(20))
+                            .child(actionButton("icons/folder", this::openCartsFolder).width(20))
+                            .child(actionButton("icons/world", this::browseCarts).width(20))));
         return panel;
     }
 
@@ -152,9 +155,11 @@ public final class Pico8CartridgeScreen {
         GuiDraw.drawRect(x + width - 1, y, 1, height, bottomRightEdge);
     }
 
-    private static ButtonWidget<?> actionButton(String translationKey, Runnable action) {
-        return new ButtonWidget<>().height(20)
-            .overlay(IKey.lang(translationKey))
+    private static ButtonWidget<?> actionButton(String iconPath, Runnable action) {
+        UITexture icon = UITexture.fullImage(Pico8GtnhMod.MODID, iconPath);
+
+        return new ButtonWidget<>().height(20).padding(2)
+            .overlay(icon)
             .onMousePressed(mouseButton -> {
                 if (mouseButton != 0) {
                     return false;
