@@ -1,18 +1,10 @@
 package com.yuelengm.pico8gtnh.gui;
 
 import java.awt.Desktop;
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-
-import javax.imageio.ImageIO;
+import java.util.ArrayList;
+import java.util.List;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiConfirmOpenLink;
@@ -40,23 +32,19 @@ import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.TextWidget;
 import com.cleanroommc.modularui.widgets.layout.Flow;
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
+import com.yuelengm.pico8gtnh.service.CartService;
+import com.yuelengm.pico8gtnh.service.Cartridge;
 
 /** Builds the MUI2 screen for choosing a local PICO-8 cartridge. */
 public final class Pico8CartridgeScreen implements GuiYesNoCallback {
 
     private static final URI BROWSE_CARTS_URI = URI
         .create("https://www.lexaloffle.com/bbs/?cat=7#sub=2&mode=carts&orderby=featured");
-    private static final int P8_PNG_ICON_X = 16;
-    private static final int P8_PNG_ICON_Y = 24;
-    private static final int P8_PNG_ICON_SIZE = 128;
-    private static final ResourceLocation UNKNOWN_PACK_ICON = new ResourceLocation("textures/misc/unknown_pack.png");
 
     private final Minecraft minecraft = Minecraft.getMinecraft();
-    private final File cartsDirectory = new File(this.minecraft.mcDataDir, "pico8carts");
-    private final Map<File, ResourceLocation> cartIcons = new HashMap<>();
-    private final Map<ResourceLocation, DynamicTexture> dynamicTextures = new HashMap<>();
-    private File[] carts = new File[0];
-    private File selectedCart;
+    private final CartService cartService = new CartService();
+    private List<Cartridge> carts = new ArrayList<>();
+    private Cartridge selectedCart;
 
     private Pico8CartridgeScreen() {}
 
@@ -76,13 +64,13 @@ public final class Pico8CartridgeScreen implements GuiYesNoCallback {
                 Flow.column()
                     .full()
                     .child(
-                        carts.length == 0 ? new TextWidget<>(IKey.lang("gui.pico8.carts.empty")).expanded()
+                        this.carts.isEmpty() ? new TextWidget<>(IKey.lang("gui.pico8.carts.empty")).expanded()
                             .fullWidth()
                             .textAlign(Alignment.CENTER)
                             : new ListWidget<>().fullWidth()
                                 .expanded()
                                 .background(new Rectangle().color(0xFF202020))
-                                .children(Arrays.asList(this.carts), this::createCartRow))
+                                .children(this.carts, CartridgeRow::new))
                     .child(
                         Flow.row()
                             .childPadding(2)
@@ -107,28 +95,23 @@ public final class Pico8CartridgeScreen implements GuiYesNoCallback {
                                     .fullHeight())));
     }
 
-    private CartridgeRow createCartRow(File cart) {
-        return new CartridgeRow(cart);
-    }
-
     private final class CartridgeRow extends Flow implements Interactable {
 
-        private final File cart;
+        private final Cartridge cart;
 
-        private CartridgeRow(File cart) {
+        private CartridgeRow(Cartridge cart) {
             super(GuiAxis.X);
             this.cart = cart;
             widthRel(1f);
             height(128 + 4);
             padding(2);
             crossAxisAlignment(Alignment.CrossAxis.CENTER);
-            ResourceLocation icon = cartIcons.get(cart);
             child(
-                new CartIcon(icon, dynamicTextures.get(icon)).asWidget()
+                new CartIcon(cart.getCoverTexture(), cart.getDynamicCoverTexture()).asWidget()
                     .size(128)
                     .marginRight(4));
             child(
-                new TextWidget<>(IKey.str(cart.getName())).expanded()
+                new TextWidget<>(IKey.str(cart.getFileName())).expanded()
                     .height(40)
                     .textAlign(Alignment.CenterLeft)
                     .style(EnumChatFormatting.WHITE));
@@ -145,7 +128,7 @@ public final class Pico8CartridgeScreen implements GuiYesNoCallback {
         }
     }
 
-    private void drawRowBackground(File cart, float x, float y, float width, float height) {
+    private void drawRowBackground(Cartridge cart, float x, float y, float width, float height) {
         boolean selected = cart.equals(this.selectedCart);
         int background = selected ? 0xFF363636 : 0xFF292929;
         int topLeftEdge = selected ? 0xFFFFD34E : 0xFF505050;
@@ -194,92 +177,15 @@ public final class Pico8CartridgeScreen implements GuiYesNoCallback {
     }
 
     private void loadSelectedCart() {
-        if (this.selectedCart == null || !this.selectedCart.isFile()) {
+        if (this.selectedCart == null || !this.selectedCart.getFile()
+            .isFile()) {
             return;
         }
-        ClientGUI.open(new PicoRScreen(this.selectedCart));
+        ClientGUI.open(new PicoRScreen(this.selectedCart.getFile()));
     }
 
     private void refreshCarts() {
-        try {
-            boolean createCartsDirectory = !this.cartsDirectory.exists();
-            if (!this.cartsDirectory.isDirectory() && !this.cartsDirectory.mkdirs()) {
-                throw new IOException("Could not create cartridge folder: " + this.cartsDirectory);
-            }
-            if (createCartsDirectory) {
-                copyBundledCartridge("/assets/pico8gtnh/Celeste.p8.png", "Celeste.p8.png");
-            }
-            File[] files = this.cartsDirectory.listFiles((directory, name) -> {
-                String lowercaseName = name.toLowerCase(Locale.ROOT);
-                return lowercaseName.endsWith(".p8") || lowercaseName.endsWith(".p8.png");
-            });
-            if (files == null) {
-                throw new IOException("Could not read cartridge folder: " + this.cartsDirectory);
-            }
-            Arrays.sort(
-                files,
-                (first, second) -> first.getName()
-                    .compareToIgnoreCase(second.getName()));
-            this.carts = files;
-            loadCartIcons(files);
-        } catch (IOException exception) {
-            this.carts = new File[0];
-            Pico8GtnhMod.LOG.error("Could not read PICO-8 cartridge folder", exception);
-        }
-    }
-
-    private void copyBundledCartridge(String resourcePath, String fileName) throws IOException {
-        InputStream input = Pico8CartridgeScreen.class.getResourceAsStream(resourcePath);
-        if (input == null) {
-            throw new IOException("Bundled PICO-8 cartridge is missing: " + resourcePath);
-        }
-
-        File destination = new File(this.cartsDirectory, fileName);
-        try (InputStream cartridge = input; FileOutputStream output = new FileOutputStream(destination)) {
-            byte[] buffer = new byte[8192];
-            int bytesRead;
-            while ((bytesRead = cartridge.read(buffer)) != -1) {
-                output.write(buffer, 0, bytesRead);
-            }
-        }
-    }
-
-    private void loadCartIcons(File[] files) {
-        this.cartIcons.clear();
-        for (File cart : files) {
-            ResourceLocation icon = UNKNOWN_PACK_ICON;
-            if (cart.getName()
-                .toLowerCase(Locale.ROOT)
-                .endsWith(".p8.png")) {
-                try {
-                    BufferedImage image = ImageIO.read(cart);
-                    if (image != null && image.getWidth() >= P8_PNG_ICON_X + P8_PNG_ICON_SIZE
-                        && image.getHeight() >= P8_PNG_ICON_Y + P8_PNG_ICON_SIZE) {
-                        BufferedImage cover = image
-                            .getSubimage(P8_PNG_ICON_X, P8_PNG_ICON_Y, P8_PNG_ICON_SIZE, P8_PNG_ICON_SIZE);
-                        icon = createDynamicTexture(
-                            "pico8_cart_" + Integer.toHexString(
-                                cart.getAbsolutePath()
-                                    .hashCode()),
-                            cover);
-                    }
-                    if (image != null) {
-                        image.flush();
-                    }
-                } catch (IOException exception) {
-                    Pico8GtnhMod.LOG.warn("Could not read PICO-8 cartridge cover {}", cart, exception);
-                }
-            }
-            this.cartIcons.put(cart, icon);
-        }
-    }
-
-    private ResourceLocation createDynamicTexture(String name, BufferedImage image) {
-        DynamicTexture texture = new DynamicTexture(image);
-        ResourceLocation location = this.minecraft.getTextureManager()
-            .getDynamicTextureLocation(name, texture);
-        this.dynamicTextures.put(location, texture);
-        return location;
+        this.carts = this.cartService.getCartridges();
     }
 
     private final class CartIcon extends UITexture {
@@ -314,24 +220,9 @@ public final class Pico8CartridgeScreen implements GuiYesNoCallback {
             if (!desktop.isSupported(Desktop.Action.OPEN)) {
                 throw new IOException("Opening folders is not supported on this system");
             }
-            desktop.open(this.cartsDirectory);
+            desktop.open(this.cartService.cartsDirectory);
         } catch (IOException | RuntimeException exception) {
             Pico8GtnhMod.LOG.error("Could not open PICO-8 cartridge folder", exception);
-        }
-    }
-
-    private void browseCarts() {
-        try {
-            if (!Desktop.isDesktopSupported()) {
-                throw new IOException("Desktop browser access is not supported on this system");
-            }
-            Desktop desktop = Desktop.getDesktop();
-            if (!desktop.isSupported(Desktop.Action.BROWSE)) {
-                throw new IOException("Opening a web browser is not supported on this system");
-            }
-            desktop.browse(BROWSE_CARTS_URI);
-        } catch (IOException | RuntimeException exception) {
-            Pico8GtnhMod.LOG.error("Could not open the PICO-8 carts page", exception);
         }
     }
 
@@ -350,6 +241,21 @@ public final class Pico8CartridgeScreen implements GuiYesNoCallback {
             }
 
             open();
+        }
+    }
+
+    public void browseCarts() {
+        try {
+            if (!Desktop.isDesktopSupported()) {
+                throw new IOException("Desktop browser access is not supported on this system");
+            }
+            Desktop desktop = Desktop.getDesktop();
+            if (!desktop.isSupported(Desktop.Action.BROWSE)) {
+                throw new IOException("Opening a web browser is not supported on this system");
+            }
+            desktop.browse(BROWSE_CARTS_URI);
+        } catch (IOException | RuntimeException exception) {
+            Pico8GtnhMod.LOG.error("Could not open the PICO-8 carts page", exception);
         }
     }
 }
