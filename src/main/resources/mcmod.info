@@ -13,8 +13,8 @@
 		"logoFile": "",
 		"screenshots": [],
 		"parent": "",
-		"requiredMods": ["falsepatternlib", "modularui2"],
-		"dependencies": ["required-after:falsepatternlib", "required-after:modularui2"],
+		"requiredMods": ["modularui2"],
+		"dependencies": [],
 		"dependants": [],
 		"useDependencyInformation": true
 	}]
