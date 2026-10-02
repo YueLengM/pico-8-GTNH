@@ -1,0 +1,6 @@
+def embedOnly = configurations.named('embedOnly')
+
+tasks.named('shadowJar') {
+    dependsOn(embedOnly)
+    from { embedOnly.get().collect { project.zipTree(it) } }
+}
