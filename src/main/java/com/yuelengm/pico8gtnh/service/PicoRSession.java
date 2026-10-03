@@ -6,8 +6,8 @@ import java.nio.file.Files;
 
 import javax.sound.sampled.LineUnavailableException;
 
-import net.minecraft.client.audio.SoundCategory;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.audio.SoundCategory;
 
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
 

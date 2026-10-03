@@ -214,20 +214,10 @@ public final class PicoRScreen extends GuiScreen {
 
         drawControlRow(DPAD_ICON, "←→↑↓", "SFED", left, top + CONTROL_HEADER_HEIGHT);
         drawControlRow(O_ICON, "Z/C/N", "Tab/W", left, top + CONTROL_HEADER_HEIGHT + CONTROL_ROW_HEIGHT);
-        drawControlRow(
-            X_ICON,
-            "X/V/M",
-            "Q",
-            left,
-            top + CONTROL_HEADER_HEIGHT + 2 * CONTROL_ROW_HEIGHT);
+        drawControlRow(X_ICON, "X/V/M", "Q", left, top + CONTROL_HEADER_HEIGHT + 2 * CONTROL_ROW_HEIGHT);
     }
 
-    private void drawControlRow(
-        ResourceLocation icon,
-        String playerOneKeys,
-        String playerTwoKeys,
-        int left,
-        int top) {
+    private void drawControlRow(ResourceLocation icon, String playerOneKeys, String playerTwoKeys, int left, int top) {
         int iconSize = 10;
         int x = left + (CONTROL_ICON_COLUMN_WIDTH - iconSize) / 2;
         int y = top + (CONTROL_ROW_HEIGHT - iconSize) / 2;
