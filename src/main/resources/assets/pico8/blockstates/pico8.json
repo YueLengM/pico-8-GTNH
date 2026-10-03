@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "pico8:block/pico8_console"
+    },
+    "facing=south": {
+      "model": "pico8:block/pico8_console",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "pico8:block/pico8_console",
+      "y": 90
+    },
+    "facing=east": {
+      "model": "pico8:block/pico8_console",
+      "y": 270
+    }
+  }
+}
