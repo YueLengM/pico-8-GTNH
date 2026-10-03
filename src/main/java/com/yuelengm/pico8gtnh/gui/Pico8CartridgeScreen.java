@@ -181,7 +181,7 @@ public final class Pico8CartridgeScreen implements GuiYesNoCallback {
             .isFile()) {
             return;
         }
-        ClientGUI.open(new PicoRScreen(this.selectedCart.getFile()));
+        ClientGUI.open(PicoRScreen.startNew(this.selectedCart.getFile()));
     }
 
     private void refreshCarts() {

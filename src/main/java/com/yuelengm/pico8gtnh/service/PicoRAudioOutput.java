@@ -20,6 +20,8 @@ public final class PicoRAudioOutput implements AutoCloseable {
     private final ArrayBlockingQueue<byte[]> queue = new ArrayBlockingQueue<>(QUEUE_CAPACITY);
     private final Thread outputThread;
     private volatile boolean running = true;
+    private volatile boolean paused;
+    private volatile long playbackGeneration;
 
     public PicoRAudioOutput() throws LineUnavailableException {
         line = AudioSystem.getSourceDataLine(FORMAT);
@@ -32,9 +34,24 @@ public final class PicoRAudioOutput implements AutoCloseable {
     }
 
     public void submit(byte[] pcm) {
-        if (running && pcm.length > 0 && !queue.offer(pcm)) {
+        if (running && !paused && pcm.length > 0 && !queue.offer(pcm)) {
             queue.poll();
             queue.offer(pcm);
+        }
+    }
+
+    public void pause() {
+        paused = true;
+        playbackGeneration++;
+        queue.clear();
+        line.stop();
+        line.flush();
+    }
+
+    public void resume() {
+        if (running && paused) {
+            line.start();
+            paused = false;
         }
     }
 
@@ -51,10 +68,11 @@ public final class PicoRAudioOutput implements AutoCloseable {
     private void writeQueuedAudio() {
         while (running) {
             try {
+                long generation = playbackGeneration;
                 byte[] pcm = queue.poll(100, TimeUnit.MILLISECONDS);
                 if (pcm != null) {
                     int offset = 0;
-                    while (running && offset < pcm.length) {
+                    while (running && !paused && generation == playbackGeneration && offset < pcm.length) {
                         offset += line.write(pcm, offset, pcm.length - offset);
                     }
                 }

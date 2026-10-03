@@ -4,12 +4,8 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
-import java.nio.file.Files;
 import java.util.List;
 
-import javax.sound.sampled.LineUnavailableException;
-
-import net.minecraft.client.audio.SoundCategory;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -20,7 +16,7 @@ import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
-import com.yuelengm.pico8gtnh.service.PicoRAudioOutput;
+import com.yuelengm.pico8gtnh.service.PicoRSession;
 import com.yuelengm.pico8gtnh.service.PicoRRuntime;
 
 /**
@@ -40,41 +36,61 @@ public final class PicoRScreen extends GuiScreen {
 
     private final ResourceLocation textureLocation = new ResourceLocation(Pico8GtnhMod.MODID, "pico8_screen");
     private final File cartFile;
+    private boolean startFresh;
+    private PicoRSession session;
     private PicoRRuntime runtime;
     private DynamicTexture texture;
     private int[] texturePixels;
-    private PicoRAudioOutput audioOutput;
-    private int audioSampleRemainder;
     private String error;
     private long lastFrameNanos;
     private long lastSlowFrameReportNanos;
 
-    public PicoRScreen(File cartFile) {
+    public static PicoRScreen resume(File cartFile) {
+        return new PicoRScreen(cartFile, false);
+    }
+
+    public static PicoRScreen startNew(File cartFile) {
+        return new PicoRScreen(cartFile, true);
+    }
+
+    private PicoRScreen(File cartFile, boolean startFresh) {
         this.cartFile = cartFile;
+        this.startFresh = startFresh;
     }
 
     @Override
     public void initGui() {
+        error = null;
+        if (texture != null) {
+            mc.getTextureManager()
+                .deleteTexture(textureLocation);
+            texture = null;
+            texturePixels = null;
+        }
         try {
-            runtime = PicoRRuntime.loadBundled();
-            if (cartFile == null || !cartFile.isFile()) {
+            if (cartFile == null) {
                 throw new IOException("Cartridge file does not exist");
             }
-            runtime.loadCart(Files.readAllBytes(cartFile.toPath()));
+            if (startFresh) {
+                session = PicoRSession.startNew(cartFile);
+                startFresh = false;
+            } else {
+                session = PicoRSession.resume(cartFile);
+            }
+            runtime = session.getRuntime();
 
             texture = new DynamicTexture(PicoRRuntime.SCREEN_WIDTH, PicoRRuntime.SCREEN_HEIGHT);
             texturePixels = texture.getTextureData();
             mc.getTextureManager()
                 .loadTexture(textureLocation, texture);
-            runtime.update();
             copyFrameToTexture();
             lastFrameNanos = System.nanoTime();
-            try {
-                audioOutput = new PicoRAudioOutput();
-            } catch (LineUnavailableException | IllegalArgumentException exception) {
-                Pico8GtnhMod.LOG.error("Could not open PICO-8 audio output", exception);
-            }
         } catch (IOException | RuntimeException | LinkageError exception) {
+            if (session != null) {
+                session.pause();
+            }
+            session = null;
+            runtime = null;
             error = "gui.pico8.runtime.start_error";
             Pico8GtnhMod.LOG.error("Could not load PICO-8 cartridge {}", cartFile, exception);
         }
@@ -176,6 +192,12 @@ public final class PicoRScreen extends GuiScreen {
                 width / 2,
                 top + gameSize + 10,
                 0xFFAAAAAA);
+            drawCenteredString(
+                fontRendererObj,
+                StatCollector.translateToLocal("gui.pico8.runtime.reselect"),
+                width / 2,
+                top + gameSize + 22,
+                0xFFAAAAAA);
         }
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
@@ -191,17 +213,14 @@ public final class PicoRScreen extends GuiScreen {
 
     @Override
     public void onGuiClosed() {
-        if (audioOutput != null) {
-            audioOutput.close();
-            audioOutput = null;
-        }
-        if (runtime != null) {
-            runtime.close();
-            runtime = null;
+        if (session != null) {
+            session.pause();
         }
         if (texture != null) {
             mc.getTextureManager()
                 .deleteTexture(textureLocation);
+            texture = null;
+            texturePixels = null;
         }
     }
 
@@ -227,21 +246,7 @@ public final class PicoRScreen extends GuiScreen {
     }
 
     private void queueAudioFrame() {
-        if (audioOutput == null) {
-            return;
-        }
-
-        int framesPerSecond = runtime.getFramesPerSecond();
-        int sampleCount = PicoRRuntime.AUDIO_SAMPLE_RATE / framesPerSecond;
-        audioSampleRemainder += PicoRRuntime.AUDIO_SAMPLE_RATE % framesPerSecond;
-        if (audioSampleRemainder >= framesPerSecond) {
-            sampleCount++;
-            audioSampleRemainder -= framesPerSecond;
-        }
-
-        float masterVolume = mc.gameSettings.getSoundLevel(SoundCategory.MASTER);
-        float recordsVolume = mc.gameSettings.getSoundLevel(SoundCategory.RECORDS);
-        audioOutput.submit(runtime.generateAudio(sampleCount, masterVolume * recordsVolume));
+        session.queueAudioFrame();
     }
 
     private void drawScreenTexture() {

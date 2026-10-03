@@ -22,5 +22,5 @@ public class CommonProxy {
 
     public void serverStarting(FMLServerStartingEvent event) {}
 
-    public void openPico8Screen() {}
+    public void openPico8Screen(boolean chooseCartridge) {}
 }
