@@ -13,8 +13,8 @@ import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
-import com.yuelengm.pico8gtnh.service.PicoRSession;
 import com.yuelengm.pico8gtnh.service.PicoRRuntime;
+import com.yuelengm.pico8gtnh.service.PicoRSession;
 
 /**
  * Basic client screen that hosts the PICO-R frame loop and its pixel buffer.
@@ -23,6 +23,26 @@ public final class PicoRScreen extends GuiScreen {
 
     private static final long NANOS_PER_SECOND = 1000000000L;
     private static final int MAX_CATCH_UP_FRAMES = 4;
+    private static final int TITLE_HEIGHT = 18;
+    private static final int CONTROL_PANEL_GAP = 8;
+    private static final int CONTROL_ICON_COLUMN_WIDTH = 14;
+    private static final int PLAYER_COLUMN_WIDTH = 36;
+    private static final int CONTROL_HEADER_HEIGHT = 16;
+    private static final int CONTROL_ROW_HEIGHT = 24;
+    private static final int CONTROL_PANEL_HEIGHT = CONTROL_HEADER_HEIGHT + 3 * CONTROL_ROW_HEIGHT;
+    private static final int CONTROL_PANEL_WIDTH = CONTROL_ICON_COLUMN_WIDTH + 2 * PLAYER_COLUMN_WIDTH;
+    private static final int HORIZONTAL_MARGIN = 2;
+    private static final int HINT_GAP = 4;
+    private static final int FONT_HEIGHT = 9;
+    private static final ResourceLocation DPAD_ICON = new ResourceLocation(
+        Pico8GtnhMod.MODID,
+        "textures/icons/controller_dpad.png");
+    private static final ResourceLocation O_ICON = new ResourceLocation(
+        Pico8GtnhMod.MODID,
+        "textures/icons/controller_o.png");
+    private static final ResourceLocation X_ICON = new ResourceLocation(
+        Pico8GtnhMod.MODID,
+        "textures/icons/controller_x.png");
     private static final int BUTTON_LEFT = 1;
     private static final int BUTTON_RIGHT = 1 << 1;
     private static final int BUTTON_UP = 1 << 2;
@@ -127,7 +147,8 @@ public final class PicoRScreen extends GuiScreen {
             return;
         }
 
-        runtime.setButtons(0, readButtonBits());
+        runtime.setButtons(0, readButtonBits(0));
+        runtime.setButtons(1, readButtonBits(1));
         int framesToRun = (int) Math.min(overdueFrames, MAX_CATCH_UP_FRAMES);
         for (int frame = 0; frame < framesToRun; frame++) {
             runtime.update();
@@ -142,13 +163,20 @@ public final class PicoRScreen extends GuiScreen {
     }
 
     private void drawGame() {
-        int scale = Math
-            .max(1, Math.min((width - 32) / PicoRRuntime.SCREEN_WIDTH, (height - 70) / PicoRRuntime.SCREEN_HEIGHT));
+        int reservedHeight = TITLE_HEIGHT + HINT_GAP + FONT_HEIGHT;
+        int availableGameWidth = width - 2 * (HORIZONTAL_MARGIN + CONTROL_PANEL_GAP + CONTROL_PANEL_WIDTH);
+        int scale = Math.max(
+            1,
+            Math.min(
+                availableGameWidth / PicoRRuntime.SCREEN_WIDTH,
+                (height - reservedHeight) / PicoRRuntime.SCREEN_HEIGHT));
         int gameSize = PicoRRuntime.SCREEN_WIDTH * scale;
         int left = (width - gameSize) / 2;
-        int top = (height - gameSize) / 2;
+        int contentHeight = reservedHeight + gameSize;
+        int top = (height - contentHeight) / 2 + TITLE_HEIGHT;
         drawGameImage(left, top, scale);
-        drawScreenText(top, gameSize);
+        drawScreenText(left, top, gameSize);
+        drawControlPanel(left + gameSize + CONTROL_PANEL_GAP, top + (gameSize - CONTROL_PANEL_HEIGHT) / 2);
     }
 
     private void drawGameImage(int left, int top, int scale) {
@@ -162,20 +190,69 @@ public final class PicoRScreen extends GuiScreen {
         GL11.glPopMatrix();
     }
 
-    private void drawScreenText(int top, int gameSize) {
-        drawCenteredString(fontRendererObj, cartFile.getName(), width / 2, top - 18, 0xFFFFFFFF);
+    private void drawScreenText(int gameLeft, int top, int gameSize) {
         drawCenteredString(
             fontRendererObj,
-            StatCollector.translateToLocal("gui.pico8.runtime.controls"),
-            width / 2,
-            top + gameSize + 10,
-            0xFFAAAAAA);
+            cartFile.getName(),
+            gameLeft + gameSize / 2,
+            top - TITLE_HEIGHT,
+            0xFFFFFFFF);
         drawCenteredString(
             fontRendererObj,
             StatCollector.translateToLocal("gui.pico8.runtime.reselect"),
             width / 2,
-            top + gameSize + 22,
+            top + gameSize + HINT_GAP,
             0xFFAAAAAA);
+    }
+
+    private void drawControlPanel(int left, int top) {
+        int playerOneCenter = left + CONTROL_ICON_COLUMN_WIDTH + PLAYER_COLUMN_WIDTH / 2;
+        int playerTwoCenter = left + CONTROL_ICON_COLUMN_WIDTH + PLAYER_COLUMN_WIDTH + PLAYER_COLUMN_WIDTH / 2;
+        int headerY = top + (CONTROL_HEADER_HEIGHT - FONT_HEIGHT) / 2;
+        drawCenteredString(fontRendererObj, "P1", playerOneCenter, headerY, 0xFFFFFFFF);
+        drawCenteredString(fontRendererObj, "P2", playerTwoCenter, headerY, 0xFFFFFFFF);
+
+        drawControlRow(DPAD_ICON, "←→↑↓", "SFED", left, top + CONTROL_HEADER_HEIGHT);
+        drawControlRow(O_ICON, "Z/C/N", "Tab/W", left, top + CONTROL_HEADER_HEIGHT + CONTROL_ROW_HEIGHT);
+        drawControlRow(
+            X_ICON,
+            "X/V/M",
+            "Q",
+            left,
+            top + CONTROL_HEADER_HEIGHT + 2 * CONTROL_ROW_HEIGHT);
+    }
+
+    private void drawControlRow(
+        ResourceLocation icon,
+        String playerOneKeys,
+        String playerTwoKeys,
+        int left,
+        int top) {
+        int iconSize = 10;
+        int x = left + (CONTROL_ICON_COLUMN_WIDTH - iconSize) / 2;
+        int y = top + (CONTROL_ROW_HEIGHT - iconSize) / 2;
+        mc.getTextureManager()
+            .bindTexture(icon);
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.startDrawingQuads();
+        tessellator.addVertexWithUV(x, y + iconSize, zLevel, 0.0D, 1.0D);
+        tessellator.addVertexWithUV(x + iconSize, y + iconSize, zLevel, 1.0D, 1.0D);
+        tessellator.addVertexWithUV(x + iconSize, y, zLevel, 1.0D, 0.0D);
+        tessellator.addVertexWithUV(x, y, zLevel, 0.0D, 0.0D);
+        tessellator.draw();
+        drawCenteredString(
+            fontRendererObj,
+            playerOneKeys,
+            left + CONTROL_ICON_COLUMN_WIDTH + PLAYER_COLUMN_WIDTH / 2,
+            top + (CONTROL_ROW_HEIGHT - FONT_HEIGHT) / 2,
+            0xFFFFFFFF);
+        drawCenteredString(
+            fontRendererObj,
+            playerTwoKeys,
+            left + CONTROL_ICON_COLUMN_WIDTH + PLAYER_COLUMN_WIDTH + PLAYER_COLUMN_WIDTH / 2,
+            top + (CONTROL_ROW_HEIGHT - FONT_HEIGHT) / 2,
+            0xFFFFFFFF);
     }
 
     @Override
@@ -205,14 +282,25 @@ public final class PicoRScreen extends GuiScreen {
         return false;
     }
 
-    private int readButtonBits() {
+    private int readButtonBits(int player) {
         int bits = 0;
-        if (Keyboard.isKeyDown(Keyboard.KEY_LEFT)) bits |= BUTTON_LEFT;
-        if (Keyboard.isKeyDown(Keyboard.KEY_RIGHT)) bits |= BUTTON_RIGHT;
-        if (Keyboard.isKeyDown(Keyboard.KEY_UP)) bits |= BUTTON_UP;
-        if (Keyboard.isKeyDown(Keyboard.KEY_DOWN)) bits |= BUTTON_DOWN;
-        if (Keyboard.isKeyDown(Keyboard.KEY_Z) || Keyboard.isKeyDown(Keyboard.KEY_C)) bits |= BUTTON_O;
-        if (Keyboard.isKeyDown(Keyboard.KEY_X)) bits |= BUTTON_X;
+        if (player == 0) {
+            if (Keyboard.isKeyDown(Keyboard.KEY_LEFT)) bits |= BUTTON_LEFT;
+            if (Keyboard.isKeyDown(Keyboard.KEY_RIGHT)) bits |= BUTTON_RIGHT;
+            if (Keyboard.isKeyDown(Keyboard.KEY_UP)) bits |= BUTTON_UP;
+            if (Keyboard.isKeyDown(Keyboard.KEY_DOWN)) bits |= BUTTON_DOWN;
+            if (Keyboard.isKeyDown(Keyboard.KEY_Z) || Keyboard.isKeyDown(Keyboard.KEY_C)
+                || Keyboard.isKeyDown(Keyboard.KEY_N)) bits |= BUTTON_O;
+            if (Keyboard.isKeyDown(Keyboard.KEY_X) || Keyboard.isKeyDown(Keyboard.KEY_V)
+                || Keyboard.isKeyDown(Keyboard.KEY_M)) bits |= BUTTON_X;
+        } else {
+            if (Keyboard.isKeyDown(Keyboard.KEY_S)) bits |= BUTTON_LEFT;
+            if (Keyboard.isKeyDown(Keyboard.KEY_F)) bits |= BUTTON_RIGHT;
+            if (Keyboard.isKeyDown(Keyboard.KEY_E)) bits |= BUTTON_UP;
+            if (Keyboard.isKeyDown(Keyboard.KEY_D)) bits |= BUTTON_DOWN;
+            if (Keyboard.isKeyDown(Keyboard.KEY_TAB) || Keyboard.isKeyDown(Keyboard.KEY_W)) bits |= BUTTON_O;
+            if (Keyboard.isKeyDown(Keyboard.KEY_Q)) bits |= BUTTON_X;
+        }
         return bits;
     }
 
