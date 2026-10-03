@@ -2,9 +2,6 @@ package com.yuelengm.pico8gtnh.gui;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.management.GarbageCollectorMXBean;
-import java.lang.management.ManagementFactory;
-import java.util.List;
 
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.Tessellator;
@@ -26,7 +23,6 @@ public final class PicoRScreen extends GuiScreen {
 
     private static final long NANOS_PER_SECOND = 1000000000L;
     private static final int MAX_CATCH_UP_FRAMES = 4;
-    private static final List<GarbageCollectorMXBean> GC_COLLECTORS = ManagementFactory.getGarbageCollectorMXBeans();
     private static final int BUTTON_LEFT = 1;
     private static final int BUTTON_RIGHT = 1 << 1;
     private static final int BUTTON_UP = 1 << 2;
@@ -43,7 +39,6 @@ public final class PicoRScreen extends GuiScreen {
     private int[] texturePixels;
     private String error;
     private long lastFrameNanos;
-    private long lastSlowFrameReportNanos;
 
     public static PicoRScreen resume(File cartFile) {
         return new PicoRScreen(cartFile, false);
@@ -100,106 +95,87 @@ public final class PicoRScreen extends GuiScreen {
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawDefaultBackground();
         if (error != null) {
-            drawCenteredString(fontRendererObj, "PICO-8", width / 2, height / 2 - 20, 0xFFFFFFFF);
-            drawCenteredString(
-                fontRendererObj,
-                StatCollector.translateToLocal("gui.pico8.runtime.error_title"),
-                width / 2,
-                height / 2 - 10,
-                0xFFFF5555);
-            drawCenteredString(
-                fontRendererObj,
-                StatCollector.translateToLocal(error),
-                width / 2,
-                height / 2 + 5,
-                0xFFFFFFFF);
+            drawErrorScreen();
         } else if (runtime != null) {
-            long now = System.nanoTime();
-            long frameInterval = NANOS_PER_SECOND / runtime.getFramesPerSecond();
-            long overdueFrames = (now - lastFrameNanos) / frameInterval;
-            if (overdueFrames > 0) {
-                runtime.setButtons(0, readButtonBits());
-                int framesToRun = (int) Math.min(overdueFrames, MAX_CATCH_UP_FRAMES);
-                long updateNanos = 0;
-                long slowestUpdateNanos = 0;
-                long audioNanos = 0;
-                for (int frame = 0; frame < framesToRun; frame++) {
-                    long updateStart = System.nanoTime();
-                    runtime.update();
-                    long frameUpdateNanos = System.nanoTime() - updateStart;
-                    updateNanos += frameUpdateNanos;
-                    slowestUpdateNanos = Math.max(slowestUpdateNanos, frameUpdateNanos);
-
-                    long audioStart = System.nanoTime();
-                    queueAudioFrame();
-                    audioNanos += System.nanoTime() - audioStart;
-                }
-                long uploadStart = System.nanoTime();
-                copyFrameToTexture();
-                long uploadNanos = System.nanoTime() - uploadStart;
-                long completedAt = System.nanoTime();
-                if (slowestUpdateNanos >= frameInterval
-                    && completedAt - lastSlowFrameReportNanos >= 2 * NANOS_PER_SECOND) {
-                    Runtime javaRuntime = Runtime.getRuntime();
-                    long usedHeapMegabytes = (javaRuntime.totalMemory() - javaRuntime.freeMemory()) / (1024 * 1024);
-                    long gcCount = 0;
-                    long gcTimeMillis = 0;
-                    for (GarbageCollectorMXBean collector : GC_COLLECTORS) {
-                        if (collector.getCollectionCount() > 0) {
-                            gcCount += collector.getCollectionCount();
-                        }
-                        if (collector.getCollectionTime() > 0) {
-                            gcTimeMillis += collector.getCollectionTime();
-                        }
-                    }
-                    Pico8GtnhMod.LOG.warn(
-                        "Slow PICO-8 frame in {}: updates={}, updateTotal={}ms, updateMax={}ms, audio={}ms, texture={}ms, heap={}MB, wasmPages={}, gcCount={}, gcTime={}ms",
-                        cartFile.getName(),
-                        framesToRun,
-                        updateNanos / 1000000,
-                        slowestUpdateNanos / 1000000,
-                        audioNanos / 1000000,
-                        uploadNanos / 1000000,
-                        usedHeapMegabytes,
-                        runtime.getWasmMemoryPages(),
-                        gcCount,
-                        gcTimeMillis);
-                    lastSlowFrameReportNanos = completedAt;
-                }
-                lastFrameNanos += frameInterval * framesToRun;
-                if (now - lastFrameNanos >= frameInterval) {
-                    lastFrameNanos = now;
-                }
-            }
-
-            int scale = Math
-                .max(1, Math.min((width - 32) / PicoRRuntime.SCREEN_WIDTH, (height - 70) / PicoRRuntime.SCREEN_HEIGHT));
-            int gameSize = PicoRRuntime.SCREEN_WIDTH * scale;
-            int left = (width - gameSize) / 2;
-            int top = (height - gameSize) / 2;
-            drawCenteredString(fontRendererObj, cartFile.getName(), width / 2, top - 18, 0xFFFFFFFF);
-            mc.getTextureManager()
-                .bindTexture(textureLocation);
-            GL11.glPushMatrix();
-            GL11.glTranslatef(left, top, 0.0F);
-            GL11.glScalef(scale, scale, 1.0F);
-            GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
-            drawScreenTexture();
-            GL11.glPopMatrix();
-            drawCenteredString(
-                fontRendererObj,
-                StatCollector.translateToLocal("gui.pico8.runtime.controls"),
-                width / 2,
-                top + gameSize + 10,
-                0xFFAAAAAA);
-            drawCenteredString(
-                fontRendererObj,
-                StatCollector.translateToLocal("gui.pico8.runtime.reselect"),
-                width / 2,
-                top + gameSize + 22,
-                0xFFAAAAAA);
+            updateGame();
+            drawGame();
         }
         super.drawScreen(mouseX, mouseY, partialTicks);
+    }
+
+    private void drawErrorScreen() {
+        drawCenteredString(fontRendererObj, "PICO-8", width / 2, height / 2 - 20, 0xFFFFFFFF);
+        drawCenteredString(
+            fontRendererObj,
+            StatCollector.translateToLocal("gui.pico8.runtime.error_title"),
+            width / 2,
+            height / 2 - 10,
+            0xFFFF5555);
+        drawCenteredString(
+            fontRendererObj,
+            StatCollector.translateToLocal(error),
+            width / 2,
+            height / 2 + 5,
+            0xFFFFFFFF);
+    }
+
+    private void updateGame() {
+        long now = System.nanoTime();
+        long frameInterval = NANOS_PER_SECOND / runtime.getFramesPerSecond();
+        long overdueFrames = (now - lastFrameNanos) / frameInterval;
+        if (overdueFrames <= 0) {
+            return;
+        }
+
+        runtime.setButtons(0, readButtonBits());
+        int framesToRun = (int) Math.min(overdueFrames, MAX_CATCH_UP_FRAMES);
+        for (int frame = 0; frame < framesToRun; frame++) {
+            runtime.update();
+            queueAudioFrame();
+        }
+        copyFrameToTexture();
+
+        lastFrameNanos += frameInterval * framesToRun;
+        if (now - lastFrameNanos >= frameInterval) {
+            lastFrameNanos = now;
+        }
+    }
+
+    private void drawGame() {
+        int scale = Math
+            .max(1, Math.min((width - 32) / PicoRRuntime.SCREEN_WIDTH, (height - 70) / PicoRRuntime.SCREEN_HEIGHT));
+        int gameSize = PicoRRuntime.SCREEN_WIDTH * scale;
+        int left = (width - gameSize) / 2;
+        int top = (height - gameSize) / 2;
+        drawGameImage(left, top, scale);
+        drawScreenText(top, gameSize);
+    }
+
+    private void drawGameImage(int left, int top, int scale) {
+        mc.getTextureManager()
+            .bindTexture(textureLocation);
+        GL11.glPushMatrix();
+        GL11.glTranslatef(left, top, 0.0F);
+        GL11.glScalef(scale, scale, 1.0F);
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+        drawScreenTexture();
+        GL11.glPopMatrix();
+    }
+
+    private void drawScreenText(int top, int gameSize) {
+        drawCenteredString(fontRendererObj, cartFile.getName(), width / 2, top - 18, 0xFFFFFFFF);
+        drawCenteredString(
+            fontRendererObj,
+            StatCollector.translateToLocal("gui.pico8.runtime.controls"),
+            width / 2,
+            top + gameSize + 10,
+            0xFFAAAAAA);
+        drawCenteredString(
+            fontRendererObj,
+            StatCollector.translateToLocal("gui.pico8.runtime.reselect"),
+            width / 2,
+            top + gameSize + 22,
+            0xFFAAAAAA);
     }
 
     @Override
