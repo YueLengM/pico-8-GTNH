@@ -20,6 +20,7 @@ public final class PicoRSession {
     private final PicoRRuntime runtime;
     private final PicoRAudioOutput audioOutput;
     private int audioSampleRemainder;
+    private byte[] savedState;
 
     private PicoRSession(File cartFile, PicoRRuntime runtime, PicoRAudioOutput audioOutput) {
         this.cartFile = cartFile;
@@ -75,6 +76,36 @@ public final class PicoRSession {
 
     public PicoRRuntime getRuntime() {
         return runtime;
+    }
+
+    /** Saves a snapshot for the current cartridge session. */
+    public boolean saveState() {
+        byte[] state = runtime.saveState();
+        if (state == null || state.length == 0) {
+            return false;
+        }
+        savedState = state;
+        return true;
+    }
+
+    /** Restores the most recent snapshot saved in this session, if any. */
+    public boolean loadSavedState() {
+        if (savedState == null) {
+            return false;
+        }
+
+        if (audioOutput != null) {
+            audioOutput.pause();
+        }
+        try {
+            runtime.loadState(savedState);
+            audioSampleRemainder = 0;
+            return true;
+        } finally {
+            if (audioOutput != null) {
+                audioOutput.resume();
+            }
+        }
     }
 
     public void pause() {

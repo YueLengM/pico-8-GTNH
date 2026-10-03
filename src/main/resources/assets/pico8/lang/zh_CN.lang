@@ -5,3 +5,5 @@ gui.pico8.carts.load=加载
 gui.pico8.runtime.error_title=PICO-R 启动失败
 gui.pico8.runtime.start_error=PICO-8 运行时无法启动，请查看日志了解详情
 gui.pico8.runtime.reselect=潜行+右键主机: 重新选择卡带
+gui.pico8.runtime.save=保存
+gui.pico8.runtime.load=读取

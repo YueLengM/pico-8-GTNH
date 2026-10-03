@@ -27,13 +27,15 @@ public final class PicoRScreen extends GuiScreen {
     private static final int CONTROL_PANEL_GAP = 8;
     private static final int CONTROL_ICON_COLUMN_WIDTH = 14;
     private static final int PLAYER_COLUMN_WIDTH = 36;
+    private static final int FONT_HEIGHT = 9;
     private static final int CONTROL_HEADER_HEIGHT = 16;
     private static final int CONTROL_ROW_HEIGHT = 24;
-    private static final int CONTROL_PANEL_HEIGHT = CONTROL_HEADER_HEIGHT + 3 * CONTROL_ROW_HEIGHT;
+    private static final int CONTROL_TABLE_HEIGHT = CONTROL_HEADER_HEIGHT + 3 * CONTROL_ROW_HEIGHT;
+    private static final int SAVE_HINT_GAP = 4;
+    private static final int CONTROL_PANEL_HEIGHT = CONTROL_TABLE_HEIGHT + SAVE_HINT_GAP + 2 * FONT_HEIGHT;
     private static final int CONTROL_PANEL_WIDTH = CONTROL_ICON_COLUMN_WIDTH + 2 * PLAYER_COLUMN_WIDTH;
     private static final int HORIZONTAL_MARGIN = 2;
     private static final int HINT_GAP = 4;
-    private static final int FONT_HEIGHT = 9;
     private static final ResourceLocation DPAD_ICON = new ResourceLocation(
         Pico8GtnhMod.MODID,
         "textures/icons/controller_dpad.png");
@@ -215,6 +217,21 @@ public final class PicoRScreen extends GuiScreen {
         drawControlRow(DPAD_ICON, "←→↑↓", "SFED", left, top + CONTROL_HEADER_HEIGHT);
         drawControlRow(O_ICON, "Z/C/N", "Tab/W", left, top + CONTROL_HEADER_HEIGHT + CONTROL_ROW_HEIGHT);
         drawControlRow(X_ICON, "X/V/M", "Q", left, top + CONTROL_HEADER_HEIGHT + 2 * CONTROL_ROW_HEIGHT);
+
+        int hintLeft = left + CONTROL_PANEL_WIDTH / 2;
+        int hintTop = top + CONTROL_TABLE_HEIGHT + SAVE_HINT_GAP;
+        drawCenteredString(
+            fontRendererObj,
+            "P: " + StatCollector.translateToLocal("gui.pico8.runtime.save"),
+            hintLeft,
+            hintTop,
+            0xFFAAAAAA);
+        drawCenteredString(
+            fontRendererObj,
+            "L: " + StatCollector.translateToLocal("gui.pico8.runtime.load"),
+            hintLeft,
+            hintTop + FONT_HEIGHT + SAVE_HINT_GAP,
+            0xFFAAAAAA);
     }
 
     private void drawControlRow(ResourceLocation icon, String playerOneKeys, String playerTwoKeys, int left, int top) {
@@ -247,11 +264,44 @@ public final class PicoRScreen extends GuiScreen {
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
+        if (keyCode == Keyboard.KEY_P) {
+            saveGameState();
+            return;
+        }
+        if (keyCode == Keyboard.KEY_L) {
+            loadGameState();
+            return;
+        }
         if (keyCode == Keyboard.KEY_ESCAPE) {
             mc.displayGuiScreen(null);
             return;
         }
         super.keyTyped(typedChar, keyCode);
+    }
+
+    private void saveGameState() {
+        if (session == null) {
+            return;
+        }
+        try {
+            session.saveState();
+        } catch (RuntimeException exception) {
+            Pico8GtnhMod.LOG.error("Could not save PICO-8 cartridge state {}", cartFile, exception);
+        }
+    }
+
+    private void loadGameState() {
+        if (session == null) {
+            return;
+        }
+        try {
+            if (session.loadSavedState()) {
+                copyFrameToTexture();
+                lastFrameNanos = System.nanoTime();
+            }
+        } catch (RuntimeException exception) {
+            Pico8GtnhMod.LOG.error("Could not load PICO-8 cartridge state {}", cartFile, exception);
+        }
     }
 
     @Override

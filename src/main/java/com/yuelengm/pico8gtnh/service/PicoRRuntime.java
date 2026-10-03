@@ -39,6 +39,10 @@ public final class PicoRRuntime implements AutoCloseable {
     private final Func getPixelBuffer;
     private final Func generateAudio;
     private final Func getFps;
+    private final Func saveStateFunction;
+    private final Func getSavePointer;
+    private final Func freeSaveState;
+    private final Func loadStateFunction;
     private boolean cartLoaded;
 
     private PicoRRuntime(Engine engine, Store<Void> store, Module module, Instance instance) {
@@ -56,6 +60,10 @@ public final class PicoRRuntime implements AutoCloseable {
         this.getPixelBuffer = getFunction("web_get_pixel_buffer");
         this.generateAudio = getFunction("web_generate_audio");
         this.getFps = getFunction("web_get_fps");
+        this.saveStateFunction = getFunction("web_save_state");
+        this.getSavePointer = getFunction("web_get_save_ptr");
+        this.freeSaveState = getFunction("web_free_save");
+        this.loadStateFunction = getFunction("web_load_state");
     }
 
     /** Loads a PICO-R WASM module. The caller owns and closes the input stream. */
@@ -178,6 +186,56 @@ public final class PicoRRuntime implements AutoCloseable {
         return pcm;
     }
 
+    /** Captures the current emulator state using PICO-R's serialized save buffer. */
+    public byte[] saveState() {
+        ensureCartLoaded();
+        int length = callI32(saveStateFunction);
+        if (length <= 0) {
+            return null;
+        }
+
+        try {
+            int pointer = callI32(getSavePointer);
+            if (pointer <= 0) {
+                return null;
+            }
+            ByteBuffer source = memoryBuffer();
+            if ((long) pointer + length > source.capacity()) {
+                throw new IllegalStateException("PICO-R save buffer is outside WASM memory");
+            }
+            byte[] state = new byte[length];
+            source.position(pointer);
+            source.get(state);
+            return state;
+        } finally {
+            freeSaveState.call(store);
+        }
+    }
+
+    /** Restores a state previously returned by {@link #saveState()}. */
+    public void loadState(byte[] state) {
+        ensureCartLoaded();
+        if (state == null || state.length == 0) {
+            throw new IllegalArgumentException("Saved state must not be empty");
+        }
+
+        int pointer = callI32(alloc, Val.fromI32(state.length));
+        if (pointer <= 0) {
+            throw new IllegalStateException("Could not allocate memory for the PICO-R saved state");
+        }
+        try {
+            ByteBuffer target = memoryBuffer();
+            if ((long) pointer + state.length > target.capacity()) {
+                throw new IllegalStateException("PICO-R load buffer is outside WASM memory");
+            }
+            target.position(pointer);
+            target.put(state);
+            loadStateFunction.call(store, Val.fromI32(pointer), Val.fromI32(state.length));
+        } finally {
+            free.call(store, Val.fromI32(pointer), Val.fromI32(state.length));
+        }
+    }
+
     public int getWasmMemoryPages() {
         return memory.size(store);
     }
@@ -188,6 +246,10 @@ public final class PicoRRuntime implements AutoCloseable {
         getPixelBuffer.dispose();
         setButtons.dispose();
         getFps.dispose();
+        loadStateFunction.dispose();
+        freeSaveState.dispose();
+        getSavePointer.dispose();
+        saveStateFunction.dispose();
         update.dispose();
         init.dispose();
         free.dispose();
