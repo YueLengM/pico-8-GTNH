@@ -3,6 +3,7 @@ package com.yuelengm.pico8gtnh.proxy;
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
 import com.yuelengm.pico8gtnh.Tags;
 import com.yuelengm.pico8gtnh.block.ModBlocks;
+import com.yuelengm.pico8gtnh.recipe.RecipeLoader;
 
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;
@@ -16,7 +17,9 @@ public class CommonProxy {
         Pico8GtnhMod.LOG.info("Pico-8 GTNH loaded at version " + Tags.VERSION);
     }
 
-    public void init(FMLInitializationEvent event) {}
+    public void init(FMLInitializationEvent event) {
+        RecipeLoader.registerRecipes();
+    }
 
     public void postInit(FMLPostInitializationEvent event) {}
 
