@@ -7,3 +7,4 @@ gui.pico8.runtime.start_error=Could not start the PICO-8 runtime. See the log fo
 gui.pico8.runtime.reselect=Sneak + right click console: choose another cart
 gui.pico8.runtime.save=Save state
 gui.pico8.runtime.load=Load state
+gui.pico8.runtime.scale_auto=Auto

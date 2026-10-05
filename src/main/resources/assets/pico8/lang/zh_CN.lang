@@ -7,3 +7,4 @@ gui.pico8.runtime.start_error=PICO-8 运行时无法启动，请查看日志了�
 gui.pico8.runtime.reselect=潜行+右键主机: 重新选择卡带
 gui.pico8.runtime.save=保存
 gui.pico8.runtime.load=读取
+gui.pico8.runtime.scale_auto=自适应

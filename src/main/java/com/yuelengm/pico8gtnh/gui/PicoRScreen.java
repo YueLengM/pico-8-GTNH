@@ -12,7 +12,9 @@ import net.minecraft.util.StatCollector;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
+import com.gtnewhorizon.gtnhlib.config.ConfigurationManager;
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
+import com.yuelengm.pico8gtnh.config.Pico8Config;
 import com.yuelengm.pico8gtnh.service.PicoRRuntime;
 import com.yuelengm.pico8gtnh.service.PicoRSession;
 
@@ -23,8 +25,6 @@ public final class PicoRScreen extends GuiScreen {
 
     private static final long NANOS_PER_SECOND = 1000000000L;
     private static final int MAX_CATCH_UP_FRAMES = 4;
-    private static final int TITLE_HEIGHT = 18;
-    private static final int CONTROL_PANEL_GAP = 8;
     private static final int CONTROL_ICON_COLUMN_WIDTH = 14;
     private static final int PLAYER_COLUMN_WIDTH = 36;
     private static final int FONT_HEIGHT = 9;
@@ -34,8 +34,16 @@ public final class PicoRScreen extends GuiScreen {
     private static final int SAVE_HINT_GAP = 4;
     private static final int CONTROL_PANEL_HEIGHT = CONTROL_TABLE_HEIGHT + SAVE_HINT_GAP + 2 * FONT_HEIGHT;
     private static final int CONTROL_PANEL_WIDTH = CONTROL_ICON_COLUMN_WIDTH + 2 * PLAYER_COLUMN_WIDTH;
-    private static final int HORIZONTAL_MARGIN = 2;
     private static final int HINT_GAP = 4;
+    private static final int SCALE_HUD_WIDTH = 32;
+    private static final int SCALE_HUD_BUTTON_HEIGHT = 16;
+    private static final int SCALE_HUD_VALUE_HEIGHT = 14;
+    private static final int SCALE_HUD_GAP = 2;
+    private static final int SCALE_HUD_SCREEN_GAP = 8;
+    private static final int HIDE_HOTSPOT_SIZE = 16;
+    private static final ResourceLocation GUI_HIDE_ICON = new ResourceLocation(
+        Pico8GtnhMod.MODID,
+        "textures/icons/gui_hide.png");
     private static final ResourceLocation DPAD_ICON = new ResourceLocation(
         Pico8GtnhMod.MODID,
         "textures/icons/controller_dpad.png");
@@ -61,6 +69,10 @@ public final class PicoRScreen extends GuiScreen {
     private int[] texturePixels;
     private String error;
     private long lastFrameNanos;
+    private int scaleHudLeft;
+    private int scaleHudTop;
+    private int hideHotspotLeft;
+    private int hideHotspotTop;
 
     public static PicoRScreen resume(File cartFile) {
         return new PicoRScreen(cartFile, false);
@@ -116,13 +128,26 @@ public final class PicoRScreen extends GuiScreen {
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawDefaultBackground();
+
+        hideHotspotLeft = pixelToGuiX(SCALE_HUD_SCREEN_GAP);
+        hideHotspotTop = height - pixelToGuiY(SCALE_HUD_SCREEN_GAP) - HIDE_HOTSPOT_SIZE;
+        boolean showUi = !isMouseOverHideHotspot(mouseX, mouseY);
+
         if (error != null) {
             drawErrorScreen();
         } else if (runtime != null) {
             updateGame();
             drawGame();
+            if (showUi) {
+                drawInterface();
+            }
         }
-        super.drawScreen(mouseX, mouseY, partialTicks);
+    }
+
+    private boolean isMouseOverHideHotspot(int mouseX, int mouseY) {
+        return mouseX >= hideHotspotLeft && mouseX < hideHotspotLeft + HIDE_HOTSPOT_SIZE
+            && mouseY >= hideHotspotTop
+            && mouseY < hideHotspotTop + HIDE_HOTSPOT_SIZE;
     }
 
     private void drawErrorScreen() {
@@ -139,6 +164,26 @@ public final class PicoRScreen extends GuiScreen {
             width / 2,
             height / 2 + 5,
             0xFFFFFFFF);
+    }
+
+    private void beginPixelProjection() {
+        GL11.glMatrixMode(GL11.GL_PROJECTION);
+        GL11.glPushMatrix();
+        GL11.glLoadIdentity();
+        GL11.glOrtho(0.0D, mc.displayWidth, mc.displayHeight, 0.0D, 1000.0D, 3000.0D);
+
+        GL11.glMatrixMode(GL11.GL_MODELVIEW);
+        GL11.glPushMatrix();
+        GL11.glLoadIdentity();
+        GL11.glTranslatef(0.0F, 0.0F, -2000.0F);
+    }
+
+    private void endPixelProjection() {
+        GL11.glMatrixMode(GL11.GL_MODELVIEW);
+        GL11.glPopMatrix();
+        GL11.glMatrixMode(GL11.GL_PROJECTION);
+        GL11.glPopMatrix();
+        GL11.glMatrixMode(GL11.GL_MODELVIEW);
     }
 
     private void updateGame() {
@@ -165,20 +210,130 @@ public final class PicoRScreen extends GuiScreen {
     }
 
     private void drawGame() {
-        int reservedHeight = TITLE_HEIGHT + HINT_GAP + FONT_HEIGHT;
-        int availableGameWidth = width - 2 * (HORIZONTAL_MARGIN + CONTROL_PANEL_GAP + CONTROL_PANEL_WIDTH);
-        int scale = Math.max(
-            1,
-            Math.min(
-                availableGameWidth / PicoRRuntime.SCREEN_WIDTH,
-                (height - reservedHeight) / PicoRRuntime.SCREEN_HEIGHT));
-        int gameSize = PicoRRuntime.SCREEN_WIDTH * scale;
-        int left = (width - gameSize) / 2;
-        int contentHeight = reservedHeight + gameSize;
-        int top = (height - contentHeight) / 2 + TITLE_HEIGHT;
-        drawGameImage(left, top, scale);
-        drawScreenText(left, top, gameSize);
-        drawControlPanel(left + gameSize + CONTROL_PANEL_GAP, top + (gameSize - CONTROL_PANEL_HEIGHT) / 2);
+        int maxFitScale = getMaxFitScale();
+        int scale = Pico8Config.screenScale == 0 ? maxFitScale : Math.min(Pico8Config.screenScale, maxFitScale);
+        int gameWidth = PicoRRuntime.SCREEN_WIDTH * scale;
+        int gameHeight = PicoRRuntime.SCREEN_HEIGHT * scale;
+        int pixelLeft = (mc.displayWidth - gameWidth) / 2;
+        int pixelTop = (mc.displayHeight - gameHeight) / 2;
+
+        beginPixelProjection();
+        try {
+            drawGameImage(pixelLeft, pixelTop, scale);
+        } finally {
+            endPixelProjection();
+        }
+    }
+
+    private void drawInterface() {
+        scaleHudLeft = pixelToGuiX(SCALE_HUD_SCREEN_GAP);
+        scaleHudTop = (height - scaleHudHeight()) / 2;
+        drawScreenText();
+        drawControlPanel();
+        drawScaleHud();
+        drawHideHotspot();
+    }
+
+    private int getMaxFitScale() {
+        return Math.min(mc.displayWidth / PicoRRuntime.SCREEN_WIDTH, mc.displayHeight / PicoRRuntime.SCREEN_HEIGHT);
+    }
+
+    private int pixelToGuiX(int pixelX) {
+        return pixelX * width / mc.displayWidth;
+    }
+
+    private int pixelToGuiY(int pixelY) {
+        return pixelY * height / mc.displayHeight;
+    }
+
+    private int scaleHudHeight() {
+        return SCALE_HUD_BUTTON_HEIGHT * 2 + SCALE_HUD_VALUE_HEIGHT + SCALE_HUD_GAP * 2;
+    }
+
+    private void drawScaleHud() {
+        int buttonY = scaleHudTop;
+        drawScaleHudButton(scaleHudLeft, buttonY, "+");
+
+        int valueY = buttonY + SCALE_HUD_BUTTON_HEIGHT + SCALE_HUD_GAP;
+        drawRect(scaleHudLeft, valueY, scaleHudLeft + SCALE_HUD_WIDTH, valueY + SCALE_HUD_VALUE_HEIGHT, 0xC0202020);
+        drawCenteredString(
+            fontRendererObj,
+            Pico8Config.screenScale == 0 ? StatCollector.translateToLocal("gui.pico8.runtime.scale_auto")
+                : getDisplayedManualScale() + "x",
+            scaleHudLeft + SCALE_HUD_WIDTH / 2,
+            valueY + (SCALE_HUD_VALUE_HEIGHT - FONT_HEIGHT) / 2,
+            0xFFFFFFFF);
+
+        int minusY = valueY + SCALE_HUD_VALUE_HEIGHT + SCALE_HUD_GAP;
+        drawScaleHudButton(scaleHudLeft, minusY, "-");
+    }
+
+    private void drawHideHotspot() {
+        mc.getTextureManager()
+            .bindTexture(GUI_HIDE_ICON);
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.startDrawingQuads();
+        tessellator.addVertexWithUV(hideHotspotLeft, hideHotspotTop + HIDE_HOTSPOT_SIZE, zLevel, 0.0D, 1.0D);
+        tessellator.addVertexWithUV(
+            hideHotspotLeft + HIDE_HOTSPOT_SIZE,
+            hideHotspotTop + HIDE_HOTSPOT_SIZE,
+            zLevel,
+            1.0D,
+            1.0D);
+        tessellator.addVertexWithUV(hideHotspotLeft + HIDE_HOTSPOT_SIZE, hideHotspotTop, zLevel, 1.0D, 0.0D);
+        tessellator.addVertexWithUV(hideHotspotLeft, hideHotspotTop, zLevel, 0.0D, 0.0D);
+        tessellator.draw();
+    }
+
+    private int getDisplayedManualScale() {
+        return Math.min(Pico8Config.screenScale, getMaxFitScale());
+    }
+
+    private void drawScaleHudButton(int left, int top, String label) {
+        drawRect(left, top, left + SCALE_HUD_WIDTH, top + SCALE_HUD_BUTTON_HEIGHT, 0xC0303030);
+        drawRect(left, top, left + SCALE_HUD_WIDTH, top + 1, 0xFF777777);
+        drawRect(left, top, left + 1, top + SCALE_HUD_BUTTON_HEIGHT, 0xFF777777);
+        drawRect(
+            left,
+            top + SCALE_HUD_BUTTON_HEIGHT - 1,
+            left + SCALE_HUD_WIDTH,
+            top + SCALE_HUD_BUTTON_HEIGHT,
+            0xFF111111);
+        drawRect(left + SCALE_HUD_WIDTH - 1, top, left + SCALE_HUD_WIDTH, top + SCALE_HUD_BUTTON_HEIGHT, 0xFF111111);
+        drawCenteredString(
+            fontRendererObj,
+            label,
+            left + SCALE_HUD_WIDTH / 2,
+            top + (SCALE_HUD_BUTTON_HEIGHT - FONT_HEIGHT) / 2,
+            0xFFFFFFFF);
+    }
+
+    @Override
+    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+        if (mouseButton == 0 && isInsideScaleHudButton(mouseX, mouseY, scaleHudTop)) {
+            int maxScale = Integer.MAX_VALUE / PicoRRuntime.SCREEN_WIDTH;
+            int currentScale = Math.max(0, Math.min(Pico8Config.screenScale, maxScale));
+            Pico8Config.screenScale = currentScale == 0 ? 1 : (currentScale < maxScale ? currentScale + 1 : maxScale);
+            ConfigurationManager.save(Pico8Config.class);
+            return;
+        }
+
+        int minusTop = scaleHudTop + SCALE_HUD_BUTTON_HEIGHT + SCALE_HUD_GAP + SCALE_HUD_VALUE_HEIGHT + SCALE_HUD_GAP;
+        if (mouseButton == 0 && isInsideScaleHudButton(mouseX, mouseY, minusTop)) {
+            int maxScale = getMaxFitScale();
+            Pico8Config.screenScale = Pico8Config.screenScale == 0 ? 0
+                : Math.max(0, Math.min(Pico8Config.screenScale, maxScale) - 1);
+            ConfigurationManager.save(Pico8Config.class);
+            return;
+        }
+        super.mouseClicked(mouseX, mouseY, mouseButton);
+    }
+
+    private boolean isInsideScaleHudButton(int mouseX, int mouseY, int buttonTop) {
+        return mouseX >= scaleHudLeft && mouseX < scaleHudLeft + SCALE_HUD_WIDTH
+            && mouseY >= buttonTop
+            && mouseY < buttonTop + SCALE_HUD_BUTTON_HEIGHT;
     }
 
     private void drawGameImage(int left, int top, int scale) {
@@ -192,22 +347,19 @@ public final class PicoRScreen extends GuiScreen {
         GL11.glPopMatrix();
     }
 
-    private void drawScreenText(int gameLeft, int top, int gameSize) {
-        drawCenteredString(
-            fontRendererObj,
-            cartFile.getName(),
-            gameLeft + gameSize / 2,
-            top - TITLE_HEIGHT,
-            0xFFFFFFFF);
+    private void drawScreenText() {
+        drawCenteredString(fontRendererObj, cartFile.getName(), width / 2, pixelToGuiY(HINT_GAP), 0xFFFFFFFF);
         drawCenteredString(
             fontRendererObj,
             StatCollector.translateToLocal("gui.pico8.runtime.reselect"),
             width / 2,
-            top + gameSize + HINT_GAP,
+            height - pixelToGuiY(HINT_GAP) - FONT_HEIGHT,
             0xFFAAAAAA);
     }
 
-    private void drawControlPanel(int left, int top) {
+    private void drawControlPanel() {
+        int left = width - CONTROL_PANEL_WIDTH - pixelToGuiX(SCALE_HUD_SCREEN_GAP);
+        int top = (height - CONTROL_PANEL_HEIGHT) / 2;
         int playerOneCenter = left + CONTROL_ICON_COLUMN_WIDTH + PLAYER_COLUMN_WIDTH / 2;
         int playerTwoCenter = left + CONTROL_ICON_COLUMN_WIDTH + PLAYER_COLUMN_WIDTH + PLAYER_COLUMN_WIDTH / 2;
         int headerY = top + (CONTROL_HEADER_HEIGHT - FONT_HEIGHT) / 2;
