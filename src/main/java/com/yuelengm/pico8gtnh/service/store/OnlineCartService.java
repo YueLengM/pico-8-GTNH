@@ -1,4 +1,4 @@
-package com.yuelengm.pico8gtnh.service;
+package com.yuelengm.pico8gtnh.service.store;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
@@ -222,7 +223,7 @@ public final class OnlineCartService {
         return true;
     }
 
-    private static String encode(String value) throws IOException {
-        return URLEncoder.encode(value, "UTF-8");
+    private static String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 }

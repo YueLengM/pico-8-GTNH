@@ -1,4 +1,4 @@
-package com.yuelengm.pico8gtnh.service;
+package com.yuelengm.pico8gtnh.service.store;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,7 +30,7 @@ public final class StorePage {
     }
 
     public static StorePage loading(OnlineCartService.Order order, int pageNumber, String search) {
-        return new StorePage(order, pageNumber, search, Collections.<OnlineCartridge>emptyList(), State.LOADING);
+        return new StorePage(order, pageNumber, search, Collections.emptyList(), State.LOADING);
     }
 
     public StorePage withCartridges(List<OnlineCartridge> cartridges) {
@@ -42,7 +42,7 @@ public final class StorePage {
             this.order,
             this.pageNumber,
             this.search,
-            Collections.<OnlineCartridge>emptyList(),
+            Collections.emptyList(),
             State.ERROR);
     }
 

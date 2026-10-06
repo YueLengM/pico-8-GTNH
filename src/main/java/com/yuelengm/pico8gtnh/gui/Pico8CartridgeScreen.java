@@ -85,7 +85,7 @@ public final class Pico8CartridgeScreen {
                                 actionButton("icons/folder", this::openCartsFolder).width(20)
                                     .fullHeight())
                             .child(
-                                actionButton("icons/world", Pico8OnlineCartridgeScreen::open).width(20)
+                                actionButton("icons/world", Pico8StoreScreen::open).width(20)
                                     .fullHeight())));
     }
 

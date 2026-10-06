@@ -1,4 +1,4 @@
-package com.yuelengm.pico8gtnh.service;
+package com.yuelengm.pico8gtnh.service.store;
 
 /** Metadata for a cartridge listed on the Lexaloffle BBS. */
 public final class OnlineCartridge {

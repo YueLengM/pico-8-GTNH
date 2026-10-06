@@ -33,12 +33,12 @@ import com.cleanroommc.modularui.widgets.layout.Grid;
 import com.cleanroommc.modularui.widgets.textfield.TextFieldWidget;
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
 import com.yuelengm.pico8gtnh.service.CartService;
-import com.yuelengm.pico8gtnh.service.OnlineCartService;
-import com.yuelengm.pico8gtnh.service.OnlineCartridge;
-import com.yuelengm.pico8gtnh.service.StorePage;
+import com.yuelengm.pico8gtnh.service.store.OnlineCartService;
+import com.yuelengm.pico8gtnh.service.store.OnlineCartridge;
+import com.yuelengm.pico8gtnh.service.store.StorePage;
 
 /** In-game browser for cartridges published on the Lexaloffle BBS. */
-public final class Pico8OnlineCartridgeScreen {
+public final class Pico8StoreScreen {
 
     private static final float PANEL_WIDTH_REL = 0.9f;
     private static final int PANEL_PADDING = 8;
@@ -65,10 +65,10 @@ public final class Pico8OnlineCartridgeScreen {
     private Grid cartridgeGrid;
     private int cartridgeGridColumns;
 
-    private Pico8OnlineCartridgeScreen() {}
+    private Pico8StoreScreen() {}
 
     public static void open() {
-        Pico8OnlineCartridgeScreen browser = new Pico8OnlineCartridgeScreen();
+        Pico8StoreScreen browser = new Pico8StoreScreen();
         browser.loadPage(browser.storePage);
     }
 
@@ -203,12 +203,10 @@ public final class Pico8OnlineCartridgeScreen {
             .child(
                 textButton(
                     "gui.pico8.online.search",
-                    () -> {
-                        this.loadPage(
-                            this.storePage.withSearch(
-                                this.searchField.getText()
-                                    .trim()));
-                    }).width(70)
+                    () -> this.loadPage(
+                        this.storePage.withSearch(
+                            this.searchField.getText()
+                                .trim()))).width(70)
                         .fullHeight());
     }
 
@@ -252,7 +250,7 @@ public final class Pico8OnlineCartridgeScreen {
             .child(
                 textButton(
                     "gui.pico8.online.next",
-                    () -> { this.loadPage(this.storePage.withPageNumber(this.storePage.getPageNumber() + 1)); })
+                    () -> this.loadPage(this.storePage.withPageNumber(this.storePage.getPageNumber() + 1)))
                         .width(80)
                         .fullHeight());
     }
