@@ -207,7 +207,7 @@ public final class Pico8StoreScreen {
                         this.storePage.withSearch(
                             this.searchField.getText()
                                 .trim()))).width(70)
-                        .fullHeight());
+                                    .fullHeight());
     }
 
     private Flow buildSortRow() {
@@ -250,8 +250,7 @@ public final class Pico8StoreScreen {
             .child(
                 textButton(
                     "gui.pico8.online.next",
-                    () -> this.loadPage(this.storePage.withPageNumber(this.storePage.getPageNumber() + 1)))
-                        .width(80)
+                    () -> this.loadPage(this.storePage.withPageNumber(this.storePage.getPageNumber() + 1))).width(80)
                         .fullHeight());
     }
 
@@ -401,7 +400,7 @@ public final class Pico8StoreScreen {
         public void draw(float x, float y, float width, float height) {
             RemoteThumbnailTexture thumbnail = THUMBNAILS.get(this.threadId);
             if (thumbnail != null && !thumbnail.isImageReady()) {
-                LOADING_ICON.draw(x, y, width, height);
+                LOADING_ICON.draw(x + 32, y + 32, 64, 64);
             } else {
                 super.draw(x, y, width, height);
             }

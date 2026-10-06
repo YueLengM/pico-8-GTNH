@@ -38,12 +38,7 @@ public final class StorePage {
     }
 
     public StorePage withError() {
-        return new StorePage(
-            this.order,
-            this.pageNumber,
-            this.search,
-            Collections.emptyList(),
-            State.ERROR);
+        return new StorePage(this.order, this.pageNumber, this.search, Collections.emptyList(), State.ERROR);
     }
 
     public StorePage withOrder(OnlineCartService.Order order) {
