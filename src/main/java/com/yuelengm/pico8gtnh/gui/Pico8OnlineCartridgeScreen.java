@@ -1,24 +1,21 @@
 package com.yuelengm.pico8gtnh.gui;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.IImageBuffer;
 import net.minecraft.client.renderer.ThreadDownloadImageData;
 import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.ResourceLocation;
 
-import org.jetbrains.annotations.NotNull;
-
 import com.cleanroommc.modularui.api.GuiAxis;
 import com.cleanroommc.modularui.api.drawable.IKey;
-import com.cleanroommc.modularui.api.widget.Interactable;
 import com.cleanroommc.modularui.drawable.GuiDraw;
 import com.cleanroommc.modularui.drawable.GuiTextures;
 import com.cleanroommc.modularui.drawable.Rectangle;
@@ -29,14 +26,15 @@ import com.cleanroommc.modularui.screen.ModularScreen;
 import com.cleanroommc.modularui.utils.Alignment;
 import com.cleanroommc.modularui.value.StringValue;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
-import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.TextWidget;
 import com.cleanroommc.modularui.widgets.layout.Flow;
+import com.cleanroommc.modularui.widgets.layout.Grid;
 import com.cleanroommc.modularui.widgets.textfield.TextFieldWidget;
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
 import com.yuelengm.pico8gtnh.service.CartService;
 import com.yuelengm.pico8gtnh.service.OnlineCartService;
 import com.yuelengm.pico8gtnh.service.OnlineCartridge;
+import com.yuelengm.pico8gtnh.service.StorePage;
 
 /** In-game browser for cartridges published on the Lexaloffle BBS. */
 public final class Pico8OnlineCartridgeScreen {
@@ -47,20 +45,15 @@ public final class Pico8OnlineCartridgeScreen {
         return thread;
     });
     private static final ResourceLocation UNKNOWN_PACK_ICON = new ResourceLocation("textures/misc/unknown_pack.png");
-    private static final Set<Integer> REQUESTED_THUMBNAILS = Collections
-        .newSetFromMap(new ConcurrentHashMap<Integer, Boolean>());
+    private static final UITexture LOADING_ICON = UITexture.fullImage(Pico8GtnhMod.MODID, "icons/loading");
+    private static final ConcurrentHashMap<Integer, RemoteThumbnailTexture> THUMBNAILS = new ConcurrentHashMap<>();
 
     private final Minecraft minecraft = Minecraft.getMinecraft();
     private final OnlineCartService onlineCartService = new OnlineCartService();
     private final CartService cartService = new CartService();
-    private List<OnlineCartridge> cartridges = Collections.emptyList();
-    private OnlineCartridge selectedCart;
-    private OnlineCartService.Order order = OnlineCartService.Order.FEATURED;
-    private int page = 1;
-    private String search = "";
+    private StorePage storePage = StorePage.loading(OnlineCartService.Order.FEATURED, 1, "");
+    private OnlineCartridge downloadingCart;
     private String status;
-    private boolean loading;
-    private boolean downloading;
     private int requestVersion;
     private ModularScreen screen;
     private TextFieldWidget searchField;
@@ -69,27 +62,24 @@ public final class Pico8OnlineCartridgeScreen {
 
     public static void open() {
         Pico8OnlineCartridgeScreen browser = new Pico8OnlineCartridgeScreen();
-        browser.loadPage();
+        browser.loadPage(browser.storePage);
     }
 
-    private void loadPage() {
+    private void loadPage(StorePage requestedPage) {
         final int version = ++this.requestVersion;
-        this.loading = true;
-        this.downloading = false;
+        this.storePage = StorePage
+            .loading(requestedPage.getOrder(), requestedPage.getPageNumber(), requestedPage.getSearch());
         this.status = null;
-        this.selectedCart = null;
-        this.show();
+        this.showPage();
         NETWORK_EXECUTOR.submit(() -> {
             try {
-                List<OnlineCartridge> result = this.onlineCartService.getCartridges(this.order, this.page, this.search);
+                StorePage result = this.onlineCartService.getPage(requestedPage);
                 this.minecraft.func_152344_a(() -> {
                     if (version != this.requestVersion || ModularScreen.getCurrent() != this.screen) {
                         return;
                     }
-                    this.cartridges = result;
-                    this.loading = false;
-                    this.status = null;
-                    this.show();
+                    this.storePage = result;
+                    this.showPage();
                 });
             } catch (IOException | RuntimeException exception) {
                 Pico8GtnhMod.LOG.warn("Could not load the Lexaloffle BBS cartridge list", exception);
@@ -97,15 +87,14 @@ public final class Pico8OnlineCartridgeScreen {
                     if (version != this.requestVersion || ModularScreen.getCurrent() != this.screen) {
                         return;
                     }
-                    this.loading = false;
-                    this.status = "gui.pico8.online.error";
-                    this.show();
+                    this.storePage = requestedPage.withError();
+                    this.showPage();
                 });
             }
         });
     }
 
-    private void show() {
+    private void showPage() {
         this.screen = new ModularScreen(Pico8GtnhMod.MODID, this.buildPanel()).pausesGame(false);
         ClientGUI.open(this.screen);
     }
@@ -116,9 +105,14 @@ public final class Pico8OnlineCartridgeScreen {
             .child(this.buildSearchRow())
             .child(this.buildSortRow());
 
-        if (this.loading) {
+        if (this.storePage.getState() == StorePage.State.LOADING) {
             column.child(
                 new TextWidget<>(IKey.lang("gui.pico8.online.loading")).expanded()
+                    .fullWidth()
+                    .textAlign(Alignment.CENTER));
+        } else if (this.storePage.getState() == StorePage.State.ERROR) {
+            column.child(
+                new TextWidget<>(IKey.lang("gui.pico8.online.error")).expanded()
                     .fullWidth()
                     .textAlign(Alignment.CENTER));
         } else if (this.status != null) {
@@ -126,22 +120,27 @@ public final class Pico8OnlineCartridgeScreen {
                 new TextWidget<>(IKey.lang(this.status)).expanded()
                     .fullWidth()
                     .textAlign(Alignment.CENTER));
-        } else if (this.cartridges.isEmpty()) {
-            column.child(
-                new TextWidget<>(IKey.lang("gui.pico8.online.empty")).expanded()
-                    .fullWidth()
-                    .textAlign(Alignment.CENTER));
-        } else {
-            column.child(
-                new ListWidget<>().fullWidth()
-                    .expanded()
-                    .background(new Rectangle().color(0xFF202020))
-                    .children(this.cartridges, OnlineCartridgeRow::new));
-        }
+        } else if (this.storePage.getCartridges()
+            .isEmpty()) {
+                column.child(
+                    new TextWidget<>(IKey.lang("gui.pico8.online.empty")).expanded()
+                        .fullWidth()
+                        .textAlign(Alignment.CENTER));
+            } else {
+                column.child(
+                    new Grid().fullWidth()
+                        .expanded()
+                        .scrollable()
+                        .background(new Rectangle().color(0xFF202020))
+                        .gridOfWidthElements(
+                            3,
+                            this.storePage.getCartridges(),
+                            (x, y, index, cartridge) -> new CartridgeCard(cartridge)));
+            }
 
         return ModularPanel.defaultPanel("pico8_online_carts")
-            .widthRel(0.82f)
-            .heightRel(0.86f)
+            .widthRel(0.8f)
+            .heightRel(0.8f)
             .padding(8)
             .child(
                 column.child(this.buildPageRow())
@@ -149,8 +148,7 @@ public final class Pico8OnlineCartridgeScreen {
     }
 
     private Flow buildSearchRow() {
-        this.searchField = new TextFieldWidget().value(new StringValue(this.search))
-            .hintText("search=a")
+        this.searchField = new TextFieldWidget().value(new StringValue(this.storePage.getSearch()))
             .setMaxLength(80)
             .expanded()
             .height(20)
@@ -161,13 +159,16 @@ public final class Pico8OnlineCartridgeScreen {
             .fullWidth()
             .height(22)
             .child(this.searchField)
-            .child(textButton("gui.pico8.online.search", () -> {
-                this.search = this.searchField.getText()
-                    .trim();
-                this.page = 1;
-                this.loadPage();
-            }).width(70)
-                .fullHeight());
+            .child(
+                textButton(
+                    "gui.pico8.online.search",
+                    () -> {
+                        this.loadPage(
+                            this.storePage.withSearch(
+                                this.searchField.getText()
+                                    .trim()));
+                    }).width(70)
+                        .fullHeight());
     }
 
     private Flow buildSortRow() {
@@ -176,17 +177,20 @@ public final class Pico8OnlineCartridgeScreen {
             .fullWidth()
             .height(20)
             .child(
-                textButton("gui.pico8.online.sort_newest", () -> this.changeOrder(OnlineCartService.Order.NEWEST))
-                    .expanded()
-                    .fullHeight())
+                textButton(
+                    "gui.pico8.online.sort_newest",
+                    () -> this.loadPage(this.storePage.withOrder(OnlineCartService.Order.NEWEST))).expanded()
+                        .fullHeight())
             .child(
-                textButton("gui.pico8.online.sort_featured", () -> this.changeOrder(OnlineCartService.Order.FEATURED))
-                    .expanded()
-                    .fullHeight())
+                textButton(
+                    "gui.pico8.online.sort_featured",
+                    () -> this.loadPage(this.storePage.withOrder(OnlineCartService.Order.FEATURED))).expanded()
+                        .fullHeight())
             .child(
-                textButton("gui.pico8.online.sort_lucky", () -> this.changeOrder(OnlineCartService.Order.LUCKY))
-                    .expanded()
-                    .fullHeight());
+                textButton(
+                    "gui.pico8.online.sort_lucky",
+                    () -> this.loadPage(this.storePage.withOrder(OnlineCartService.Order.LUCKY))).expanded()
+                        .fullHeight());
     }
 
     private Flow buildPageRow() {
@@ -195,21 +199,21 @@ public final class Pico8OnlineCartridgeScreen {
             .fullWidth()
             .height(20)
             .child(textButton("gui.pico8.online.previous", () -> {
-                if (this.page > 1) {
-                    this.page--;
-                    this.loadPage();
+                if (this.storePage.getPageNumber() > 1) {
+                    this.loadPage(this.storePage.withPageNumber(this.storePage.getPageNumber() - 1));
                 }
             }).width(80)
                 .fullHeight())
             .child(
-                new TextWidget<>(IKey.str(this.pageLabel())).expanded()
+                new TextWidget<>(IKey.str(this.storePage.getPageLabel())).expanded()
                     .fullHeight()
                     .textAlign(Alignment.CENTER))
-            .child(textButton("gui.pico8.online.next", () -> {
-                this.page++;
-                this.loadPage();
-            }).width(80)
-                .fullHeight());
+            .child(
+                textButton(
+                    "gui.pico8.online.next",
+                    () -> { this.loadPage(this.storePage.withPageNumber(this.storePage.getPageNumber() + 1)); })
+                        .width(80)
+                        .fullHeight());
     }
 
     private Flow buildActionRow() {
@@ -223,21 +227,7 @@ public final class Pico8OnlineCartridgeScreen {
             .child(
                 new TextWidget<>(this.status == null ? IKey.str("") : IKey.lang(this.status)).expanded()
                     .fullHeight()
-                    .textAlign(Alignment.CENTER))
-            .child(
-                this.createDownloadButton()
-                    .width(110)
-                    .fullHeight());
-    }
-
-    private String pageLabel() {
-        return this.search.isEmpty() ? "Page " + this.page : "Page " + this.page + " · " + this.search;
-    }
-
-    private void changeOrder(OnlineCartService.Order nextOrder) {
-        this.order = nextOrder;
-        this.page = 1;
-        this.loadPage();
+                    .textAlign(Alignment.CENTER));
     }
 
     private static ButtonWidget<?> textButton(String labelKey, Runnable action) {
@@ -251,7 +241,9 @@ public final class Pico8OnlineCartridgeScreen {
             });
     }
 
-    private ButtonWidget<?> createDownloadButton() {
+    private ButtonWidget<?> createDownloadButton(OnlineCartridge cartridge) {
+        String buttonLabel = this.downloadingCart == cartridge ? "gui.pico8.online.downloading"
+            : "gui.pico8.online.download";
         return new ButtonWidget<>().background((context, x, y, width, height, widgetTheme) -> {
             UITexture buttonTexture = isDownloadEnabled() ? GuiTextures.MC_BUTTON : GuiTextures.MC_BUTTON_DISABLED;
             buttonTexture.draw(context, x, y, width, height, widgetTheme);
@@ -261,28 +253,27 @@ public final class Pico8OnlineCartridgeScreen {
                     : GuiTextures.MC_BUTTON_DISABLED;
                 buttonTexture.draw(context, x, y, width, height, widgetTheme);
             })
-            .overlay(IKey.lang(this.downloading ? "gui.pico8.online.downloading" : "gui.pico8.online.download"))
+            .overlay(IKey.lang(buttonLabel))
             .onMousePressed(mouseButton -> {
                 if (mouseButton != 0 || !isDownloadEnabled()) {
                     return false;
                 }
-                this.downloadSelectedCart();
+                this.downloadCart(cartridge);
                 return true;
             });
     }
 
     private boolean isDownloadEnabled() {
-        return this.selectedCart != null && !this.downloading;
+        return this.downloadingCart == null;
     }
 
-    private void downloadSelectedCart() {
-        if (this.selectedCart == null || this.downloading) {
+    private void downloadCart(OnlineCartridge selected) {
+        if (this.downloadingCart != null) {
             return;
         }
-        OnlineCartridge selected = this.selectedCart;
-        this.downloading = true;
+        this.downloadingCart = selected;
         this.status = "gui.pico8.online.downloading_status";
-        this.show();
+        this.showPage();
         NETWORK_EXECUTOR.submit(() -> {
             try {
                 File downloaded = this.onlineCartService.download(selected, this.cartService.cartsDirectory);
@@ -298,61 +289,58 @@ public final class Pico8OnlineCartridgeScreen {
                     if (ModularScreen.getCurrent() != this.screen) {
                         return;
                     }
-                    this.downloading = false;
+                    this.downloadingCart = null;
                     this.status = "gui.pico8.online.download_error";
-                    this.show();
+                    this.showPage();
                 });
             }
         });
     }
 
-    private final class OnlineCartridgeRow extends Flow implements Interactable {
+    private final class CartridgeCard extends Flow {
 
-        private final OnlineCartridge cartridge;
+        private static final int CARD_WIDTH = 128+2;
+        private static final int CARD_HEIGHT = 222;
 
-        private OnlineCartridgeRow(OnlineCartridge cartridge) {
-            super(GuiAxis.X);
-            this.cartridge = cartridge;
-            widthRel(1f);
-            height(132);
-            padding(2);
-            crossAxisAlignment(Alignment.CrossAxis.CENTER);
+        private CartridgeCard(OnlineCartridge cartridge) {
+            super(GuiAxis.Y);
+            String authorLabel = cartridge.getAuthor()
+                .isEmpty() ? "" : ("by " + cartridge.getAuthor());
+            width(CARD_WIDTH);
+            coverChildrenHeight();
+            paddingBottom(4);
             child(
                 new RemoteCartIcon(cartridge).asWidget()
-                    .size(128)
-                    .marginRight(4));
+                    .width(128)
+                    .height(128));
             child(
-                new TextWidget<>(IKey.str(cartridge.getTitle())).expanded()
-                    .height(40)
-                    .textAlign(Alignment.CenterLeft)
+                new TextWidget<>(IKey.str(cartridge.getTitle())).fullWidth()
+                    .height(34)
+                    .textAlign(Alignment.CENTER)
                     .style(EnumChatFormatting.WHITE));
-            background(
-                (context, x, y, width, height, widgetTheme) -> drawRowBackground(cartridge, x, y, width, height));
-        }
-
-        @Override
-        public @NotNull Result onMousePressed(int mouseButton) {
-            if (mouseButton != 0) {
-                return Result.IGNORE;
-            }
-            selectedCart = this.cartridge;
-            return Result.SUCCESS;
+            child(
+                new TextWidget<>(IKey.str(authorLabel)).fullWidth()
+                    .height(16)
+                    .textAlign(Alignment.CENTER)
+                    .style(EnumChatFormatting.GRAY));
+            child(
+                createDownloadButton(cartridge).width(CARD_WIDTH - 10)
+                    .height(20));
+            background((context, x, y, width, height, widgetTheme) -> drawCardBackground(x, y, width, height));
         }
     }
 
-    private void drawRowBackground(OnlineCartridge cartridge, float x, float y, float width, float height) {
-        boolean selected = cartridge.equals(this.selectedCart);
-        int background = selected ? 0xFF363636 : 0xFF292929;
-        int topLeftEdge = selected ? 0xFFFFD34E : 0xFF505050;
-        int bottomRightEdge = selected ? 0xFFFFD34E : 0xFF171717;
-        GuiDraw.drawRect(x, y, width, height, background);
-        GuiDraw.drawRect(x, y, width, 1, topLeftEdge);
-        GuiDraw.drawRect(x, y, 1, height, topLeftEdge);
-        GuiDraw.drawRect(x, y + height - 1, width, 1, bottomRightEdge);
-        GuiDraw.drawRect(x + width - 1, y, 1, height, bottomRightEdge);
+    private void drawCardBackground(float x, float y, float width, float height) {
+        GuiDraw.drawRect(x, y, width, height, 0xFF292929);
+        GuiDraw.drawRect(x, y, width, 1, 0xFF505050);
+        GuiDraw.drawRect(x, y, 1, height, 0xFF505050);
+        GuiDraw.drawRect(x, y + height - 1, width, 1, 0xFF171717);
+        GuiDraw.drawRect(x + width - 1, y, 1, height, 0xFF171717);
     }
 
     private final class RemoteCartIcon extends UITexture {
+
+        private final int threadId;
 
         private RemoteCartIcon(OnlineCartridge cartridge) {
             super(
@@ -362,22 +350,59 @@ public final class Pico8OnlineCartridgeScreen {
                 1,
                 1,
                 null);
-            if (cartridge.getThumbnailUrl() != null && REQUESTED_THUMBNAILS.add(cartridge.getThreadId())) {
-                ResourceLocation location = getTextureLocation(cartridge);
-                minecraft.getTextureManager()
-                    .loadTexture(
-                        location,
-                        new ThreadDownloadImageData(null, cartridge.getThumbnailUrl(), UNKNOWN_PACK_ICON, null));
+            this.threadId = cartridge.getThreadId();
+            if (cartridge.getThumbnailUrl() != null) {
+                THUMBNAILS.computeIfAbsent(cartridge.getThreadId(), threadId -> {
+                    RemoteThumbnailTexture texture = new RemoteThumbnailTexture(cartridge.getThumbnailUrl());
+                    minecraft.getTextureManager()
+                        .loadTexture(getTextureLocation(cartridge), texture);
+                    return texture;
+                });
             }
         }
 
         @Override
         public void draw(float x, float y, float width, float height) {
-            super.draw(x, y, width, height);
+            RemoteThumbnailTexture thumbnail = THUMBNAILS.get(this.threadId);
+            if (thumbnail != null && !thumbnail.isImageReady()) {
+                LOADING_ICON.draw(x, y, width, height);
+            } else {
+                super.draw(x, y, width, height);
+            }
+        }
+
+    }
+
+    private static final class RemoteThumbnailTexture extends ThreadDownloadImageData {
+
+        private final AtomicBoolean imageReady;
+
+        private RemoteThumbnailTexture(String imageUrl) {
+            this(imageUrl, new AtomicBoolean());
+        }
+
+        private RemoteThumbnailTexture(String imageUrl, AtomicBoolean imageReady) {
+            super(null, imageUrl, UNKNOWN_PACK_ICON, new IImageBuffer() {
+
+                @Override
+                public BufferedImage parseUserSkin(BufferedImage image) {
+                    return image;
+                }
+
+                @Override
+                public void func_152634_a() {
+                    imageReady.set(true);
+                }
+            });
+            this.imageReady = imageReady;
+        }
+
+        private boolean isImageReady() {
+            return this.imageReady.get();
         }
     }
 
     private static ResourceLocation getTextureLocation(OnlineCartridge cartridge) {
-        return new ResourceLocation(Pico8GtnhMod.MODID, "online_cart_" + cartridge.getThreadId());
+        return new ResourceLocation(Pico8GtnhMod.MODID, "textures/online_cart_" + cartridge.getThreadId() + ".png");
     }
 }

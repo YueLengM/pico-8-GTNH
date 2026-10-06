@@ -28,8 +28,8 @@ public final class OnlineCartService {
     private static final int TIMEOUT_MILLIS = 15000;
     private static final int MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024;
     private static final byte[] PNG_SIGNATURE = { (byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A };
-    private static final Pattern CART_DATA_ENTRY = Pattern
-        .compile("\\['[^']*'\\s*,\\s*(\\d+)\\s*,\\s*`([^`]+)`\\s*,\\s*\"([^\"]+)\"");
+    private static final Pattern CART_DATA_ENTRY = Pattern.compile(
+        "\\['[^']*'\\s*,\\s*(\\d+)\\s*,\\s*`([^`]+)`\\s*,\\s*\"([^\"]+)\"\\s*,\\s*[^,]+\\s*,\\s*[^,]+\\s*,\\s*\"[^\"]*\"\\s*,\\s*[^,]+\\s*,\\s*\"([^\"]*)\"");
     private static final Pattern DOWNLOAD_PATH = Pattern
         .compile("p8_run_cart\\([^,]+,\\s*'[^']*',\\s*'([^']+\\.p8\\.png)'", Pattern.CASE_INSENSITIVE);
 
@@ -82,15 +82,21 @@ public final class OnlineCartService {
             String title = matcher.group(2)
                 .trim();
             String thumbnailPath = matcher.group(3);
+            String author = matcher.group(4)
+                .trim();
             if (title.isEmpty()) {
                 continue;
             }
             String thumbnailUrl = thumbnailPath.startsWith("/bbs/thumbs/") || thumbnailPath.startsWith("/media/")
                 ? "https://" + HOST + thumbnailPath
                 : null;
-            cartridges.add(new OnlineCartridge(threadId, title, thumbnailUrl));
+            cartridges.add(new OnlineCartridge(threadId, title, author, thumbnailUrl));
         }
         return cartridges;
+    }
+
+    public StorePage getPage(StorePage page) throws IOException {
+        return page.withCartridges(getCartridges(page.getOrder(), page.getPageNumber(), page.getSearch()));
     }
 
     /** Downloads the selected cart to the local cart folder and returns the saved file. */
