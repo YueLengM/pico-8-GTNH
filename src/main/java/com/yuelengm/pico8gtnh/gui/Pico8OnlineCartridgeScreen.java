@@ -9,6 +9,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.IImageBuffer;
 import net.minecraft.client.renderer.ThreadDownloadImageData;
 import net.minecraft.util.EnumChatFormatting;
@@ -39,6 +40,10 @@ import com.yuelengm.pico8gtnh.service.StorePage;
 /** In-game browser for cartridges published on the Lexaloffle BBS. */
 public final class Pico8OnlineCartridgeScreen {
 
+    private static final float PANEL_WIDTH_REL = 0.9f;
+    private static final int PANEL_PADDING = 8;
+    private static final int CARD_WIDTH = 130;
+
     private static final ExecutorService NETWORK_EXECUTOR = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "PICO-8 BBS browser");
         thread.setDaemon(true);
@@ -57,6 +62,8 @@ public final class Pico8OnlineCartridgeScreen {
     private int requestVersion;
     private ModularScreen screen;
     private TextFieldWidget searchField;
+    private Grid cartridgeGrid;
+    private int cartridgeGridColumns;
 
     private Pico8OnlineCartridgeScreen() {}
 
@@ -95,8 +102,12 @@ public final class Pico8OnlineCartridgeScreen {
     }
 
     private void showPage() {
+        this.cartridgeGrid = null;
         this.screen = new ModularScreen(Pico8GtnhMod.MODID, this.buildPanel()).pausesGame(false);
         ClientGUI.open(this.screen);
+        if (this.cartridgeGrid != null) {
+            this.screen.registerFrameUpdateListener(this.cartridgeGrid, this::refreshGridColumns);
+        }
     }
 
     private ModularPanel buildPanel() {
@@ -127,24 +138,54 @@ public final class Pico8OnlineCartridgeScreen {
                         .fullWidth()
                         .textAlign(Alignment.CENTER));
             } else {
-                column.child(
-                    new Grid().fullWidth()
-                        .expanded()
-                        .scrollable()
-                        .background(new Rectangle().color(0xFF202020))
-                        .gridOfWidthElements(
-                            3,
-                            this.storePage.getCartridges(),
-                            (x, y, index, cartridge) -> new CartridgeCard(cartridge)));
+                this.cartridgeGridColumns = this.cardsPerRow();
+                this.cartridgeGrid = new Grid().fullWidth()
+                    .alignment(Alignment.CENTER)
+                    .expanded()
+                    .scrollable()
+                    .background(new Rectangle().color(0xFF202020))
+                    .gridOfWidthElements(
+                        this.cartridgeGridColumns,
+                        this.storePage.getCartridges(),
+                        (x, y, index, cartridge) -> new CartridgeCard(cartridge));
+                column.child(this.cartridgeGrid);
             }
 
         return ModularPanel.defaultPanel("pico8_online_carts")
-            .widthRel(0.8f)
+            .widthRel(PANEL_WIDTH_REL)
             .heightRel(0.8f)
-            .padding(8)
+            .padding(PANEL_PADDING)
             .child(
                 column.child(this.buildPageRow())
                     .child(this.buildActionRow()));
+    }
+
+    private int cardsPerRow() {
+        ScaledResolution resolution = new ScaledResolution(
+            this.minecraft,
+            this.minecraft.displayWidth,
+            this.minecraft.displayHeight);
+        int gridWidth = (int) (resolution.getScaledWidth() * PANEL_WIDTH_REL) - PANEL_PADDING * 2;
+        int columns = (gridWidth) / (CARD_WIDTH);
+        return Math.max(1, columns);
+    }
+
+    private void refreshGridColumns() {
+        if (this.cartridgeGrid == null || this.cartridgeGrid.getArea()
+            .w() <= 0) {
+            return;
+        }
+        int columns = Math.max(
+            1,
+            this.cartridgeGrid.getArea()
+                .w() / CARD_WIDTH);
+        if (columns != this.cartridgeGridColumns) {
+            this.cartridgeGridColumns = columns;
+            this.cartridgeGrid.gridOfWidthElements(
+                columns,
+                this.storePage.getCartridges(),
+                (x, y, index, cartridge) -> new CartridgeCard(cartridge));
+        }
     }
 
     private Flow buildSearchRow() {
@@ -298,9 +339,6 @@ public final class Pico8OnlineCartridgeScreen {
     }
 
     private final class CartridgeCard extends Flow {
-
-        private static final int CARD_WIDTH = 128+2;
-        private static final int CARD_HEIGHT = 222;
 
         private CartridgeCard(OnlineCartridge cartridge) {
             super(GuiAxis.Y);
