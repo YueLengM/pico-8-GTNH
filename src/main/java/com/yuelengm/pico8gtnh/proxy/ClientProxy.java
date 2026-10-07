@@ -5,9 +5,10 @@ import java.io.File;
 import net.minecraftforge.client.ClientCommandHandler;
 
 import com.cleanroommc.modularui.factory.ClientGUI;
-import com.gtnewhorizon.gtnhlib.client.model.loading.ModelRegistry;
+import com.gtnewhorizon.gtnhlib.config.ConfigException;
 import com.gtnewhorizon.gtnhlib.config.ConfigurationManager;
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
+import com.yuelengm.pico8gtnh.Tags;
 import com.yuelengm.pico8gtnh.client.command.Pico8ClientCommand;
 import com.yuelengm.pico8gtnh.config.Pico8Config;
 import com.yuelengm.pico8gtnh.gui.Pico8CartridgeScreen;
@@ -24,8 +25,12 @@ public class ClientProxy extends CommonProxy {
     @Override
     public void preInit(FMLPreInitializationEvent event) {
         super.preInit(event);
-        ConfigurationManager.registerConfig(Pico8Config.class);
-        ModelRegistry.registerModid(Pico8GtnhMod.MODID);
+        try {
+            ConfigurationManager.registerConfig(Pico8Config.class);
+        } catch (ConfigException e) {
+            throw new IllegalStateException("Could not register PICO-8 configuration", e);
+        }
+        Pico8GtnhMod.LOG.info("Pico-8 GTNH loaded at version " + Tags.VERSION);
     }
 
     @Override

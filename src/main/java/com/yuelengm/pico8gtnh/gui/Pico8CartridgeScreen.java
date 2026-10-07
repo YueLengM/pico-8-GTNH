@@ -58,41 +58,38 @@ public final class Pico8CartridgeScreen {
                 Flow.column()
                     .full()
                     .child(
-                        this.carts.isEmpty() ? new TextWidget<>(IKey.lang("gui.pico8.carts.empty")).expanded()
-                            .fullWidth()
-                            .textAlign(Alignment.CENTER)
-                            : new ListWidget<>().fullWidth()
+                        this.carts.isEmpty() ? new TextWidget(IKey.lang("gui.pico8.carts.empty")).expanded()
+                            .widthRel(1f)
+                            .alignment(Alignment.CENTER)
+                            : new ListWidget<>().widthRel(1f)
                                 .expanded()
-                                .background(new Rectangle().color(0xFF202020))
-                                .children(this.carts, CartridgeRow::new))
+                                .background(new Rectangle().setColor(0xFF202020))
+                                .children(this.carts.size(), index -> new CartridgeRow(this.carts.get(index))))
                     .child(
                         Flow.row()
                             .childPadding(2)
-                            .fullWidth()
+                            .widthRel(1f)
                             .height(20)
                             .marginTop(2)
                             .child(
-                                new TextWidget<>(IKey.lang("gui.pico8.carts.title")).textAlign(Alignment.CENTER)
+                                new TextWidget(IKey.lang("gui.pico8.carts.title")).alignment(Alignment.CENTER)
                                     .style(EnumChatFormatting.BOLD)
                                     .widthRel(0.15f))
                             .child(
                                 createLoadButton().expanded()
-                                    .fullHeight())
+                                    .heightRel(1f))
                             .child(
                                 CommonWidgets.iconButton("icons/refresh", Pico8CartridgeScreen::open)
-                                    .padding(2)
                                     .width(20)
-                                    .fullHeight())
+                                    .heightRel(1f))
                             .child(
                                 CommonWidgets.iconButton("icons/folder", this::openCartsFolder)
-                                    .padding(2)
                                     .width(20)
-                                    .fullHeight())
+                                    .heightRel(1f))
                             .child(
                                 CommonWidgets.iconButton("icons/add", Pico8StoreScreen::open)
-                                    .padding(2)
                                     .width(20)
-                                    .fullHeight())));
+                                    .heightRel(1f))));
     }
 
     private final class CartridgeRow extends Flow implements Interactable {
@@ -111,9 +108,9 @@ public final class Pico8CartridgeScreen {
                     .size(128)
                     .marginRight(4));
             child(
-                new TextWidget<>(IKey.str(cart.getFileName())).expanded()
+                new TextWidget(IKey.str(cart.getFileName())).expanded()
                     .height(40)
-                    .textAlign(Alignment.CenterLeft)
+                    .alignment(Alignment.CenterLeft)
                     .style(EnumChatFormatting.WHITE));
             background((context, x, y, width, height, widgetTheme) -> drawRowBackground(cart, x, y, width, height));
         }
@@ -179,7 +176,7 @@ public final class Pico8CartridgeScreen {
         private final DynamicTexture texture;
 
         private CartIcon(ResourceLocation location, DynamicTexture texture) {
-            super(location, 0, 0, 1, 1, null);
+            super(location, 0, 0, 1, 1, false);
             this.texture = texture;
         }
 

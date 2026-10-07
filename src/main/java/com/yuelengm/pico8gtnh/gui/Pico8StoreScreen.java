@@ -135,29 +135,29 @@ public final class Pico8StoreScreen {
 
         if (this.storePage.getState() == StorePage.State.LOADING) {
             column.child(
-                new TextWidget<>(IKey.lang("gui.pico8.online.loading")).expanded()
-                    .fullWidth()
-                    .textAlign(Alignment.CENTER)
+                new TextWidget(IKey.lang("gui.pico8.online.loading")).expanded()
+                    .widthRel(1f)
+                    .alignment(Alignment.CENTER)
                     .style(EnumChatFormatting.WHITE));
         } else if (this.storePage.getState() == StorePage.State.ERROR) {
             column.child(
-                new TextWidget<>(IKey.lang("gui.pico8.online.error")).expanded()
-                    .fullWidth()
-                    .textAlign(Alignment.CENTER)
+                new TextWidget(IKey.lang("gui.pico8.online.error")).expanded()
+                    .widthRel(1f)
+                    .alignment(Alignment.CENTER)
                     .style(EnumChatFormatting.RED));
         } else if (this.storePage.getCartridges()
             .isEmpty()) {
                 column.child(
-                    new TextWidget<>(IKey.lang("gui.pico8.online.empty")).expanded()
-                        .fullWidth()
-                        .textAlign(Alignment.CENTER));
+                    new TextWidget(IKey.lang("gui.pico8.online.empty")).expanded()
+                        .widthRel(1f)
+                        .alignment(Alignment.CENTER));
             } else {
                 this.cartridgeGridColumns = this.cardsPerRow();
-                this.cartridgeGrid = new Grid().fullWidth()
+                this.cartridgeGrid = new Grid().widthRel(1f)
                     .alignment(Alignment.CENTER)
                     .expanded()
                     .scrollable()
-                    .gridOf(1, this.createCartridgeRows());
+                    .mapTo(1, this.createCartridgeRows());
                 column.child(this.cartridgeGrid);
             }
 
@@ -166,9 +166,7 @@ public final class Pico8StoreScreen {
         return ModularPanel.defaultPanel("pico8_online_carts")
             .full()
             .padding(PANEL_PADDING)
-            .background(new Rectangle().color(0x80202020))
-            .disableThemeBackground(true)
-            .disableHoverThemeBackground(true)
+            .background(new Rectangle().setColor(0x80202020))
             .child(column);
     }
 
@@ -187,7 +185,7 @@ public final class Pico8StoreScreen {
         List<Flow> rows = new ArrayList<>();
         for (int start = 0; start < cartridges.size(); start += this.cartridgeGridColumns) {
             Flow row = Flow.row()
-                .fullWidth()
+                .widthRel(1f)
                 .coverChildrenHeight()
                 .mainAxisAlignment(Alignment.MainAxis.CENTER);
             int end = Math.min(start + this.cartridgeGridColumns, cartridges.size());
@@ -220,34 +218,34 @@ public final class Pico8StoreScreen {
         this.searchField = new TextFieldWidget().value(new StringValue(this.storePage.getSearch()))
             .setMaxLength(80)
             .expanded()
-            .fullHeight();
+            .heightRel(1f);
 
         return Flow.row()
             .childPadding(2)
-            .fullWidth()
+            .widthRel(1f)
             .height(20)
             .child(
                 Flow.row()
                     .widthRel(0.5f)
-                    .fullHeight()
+                    .heightRel(1f)
                     .childPadding(1)
                     .child(
                         CommonWidgets.iconButton("icons/world", this::openInBrowser)
                             .size(20)
-                            .padding(2))
+                            )
                     .child(
                         sortButton("gui.pico8.online.sort_newest", OnlineCartService.Order.NEWEST).expanded()
-                            .fullHeight())
+                            .heightRel(1f))
                     .child(
                         sortButton("gui.pico8.online.sort_featured", OnlineCartService.Order.FEATURED).expanded()
-                            .fullHeight())
+                            .heightRel(1f))
                     .child(
                         sortButton("gui.pico8.online.sort_lucky", OnlineCartService.Order.LUCKY).expanded()
-                            .fullHeight()))
+                            .heightRel(1f)))
             .child(
                 Flow.row()
                     .widthRel(0.5f)
-                    .fullHeight()
+                    .heightRel(1f)
                     .child(this.searchField)
                     .child(
                         CommonWidgets
@@ -258,13 +256,13 @@ public final class Pico8StoreScreen {
                                         this.searchField.getText()
                                             .trim())))
                             .size(20)
-                            .padding(2)));
+                            ));
     }
 
     private Flow buildPageRow() {
         return Flow.row()
             .childPadding(2)
-            .fullWidth()
+            .widthRel(1f)
             .height(20)
             .child(CommonWidgets.textButton("gui.pico8.online.previous", () -> {
                 if (this.storePage.getPageNumber() > 1) {
@@ -272,11 +270,11 @@ public final class Pico8StoreScreen {
                 }
             })
                 .width(80)
-                .fullHeight())
+                .heightRel(1f))
             .child(
-                new TextWidget<>(IKey.lang("gui.pico8.online.page", this.storePage.getPageNumber())).expanded()
-                    .fullHeight()
-                    .textAlign(Alignment.CENTER)
+                new TextWidget(IKey.lang("gui.pico8.online.page", this.storePage.getPageNumber())).expanded()
+                    .heightRel(1f)
+                    .alignment(Alignment.CENTER)
                     .style(EnumChatFormatting.WHITE))
             .child(
                 CommonWidgets
@@ -284,7 +282,7 @@ public final class Pico8StoreScreen {
                         "gui.pico8.online.next",
                         () -> this.loadPage(this.storePage.withPageNumber(this.storePage.getPageNumber() + 1)))
                     .width(80)
-                    .fullHeight());
+                    .heightRel(1f));
     }
 
     private ButtonWidget<?> sortButton(String labelKey, OnlineCartService.Order order) {
@@ -372,7 +370,10 @@ public final class Pico8StoreScreen {
         if (button == null) {
             return;
         }
-        button.overlay(CHECKMARK_ICON);
+        button.child(
+            CHECKMARK_ICON.asWidget()
+                .size(16)
+                .center());
     }
 
     private void showDownloadDialog(OnlineCartridge cartridge) {
@@ -383,19 +384,19 @@ public final class Pico8StoreScreen {
                 dialog.width(220)
                     .height(64)
                     .padding(8)
-                    .background(new Rectangle().color(0xF0202020))
+                    .background(new Rectangle().setColor(0xF0202020))
                     .child(
                         Flow.column()
                             .full()
                             .child(
-                                new TextWidget<>(IKey.lang("gui.pico8.online.downloading_status")).fullWidth()
+                                new TextWidget(IKey.lang("gui.pico8.online.downloading_status")).widthRel(1f)
                                     .height(20)
-                                    .textAlign(Alignment.CENTER)
+                                    .alignment(Alignment.CENTER)
                                     .style(EnumChatFormatting.WHITE))
                             .child(
-                                new TextWidget<>(IKey.lang(() -> this.downloadingCartTitle)).fullWidth()
+                                new TextWidget(IKey.lang(() -> this.downloadingCartTitle)).widthRel(1f)
                                     .height(20)
-                                    .textAlign(Alignment.CENTER)
+                                    .alignment(Alignment.CENTER)
                                     .style(EnumChatFormatting.GRAY)));
                 return dialog;
             }, true);
@@ -422,24 +423,24 @@ public final class Pico8StoreScreen {
                 new RemoteCartIcon(cartridge).asWidget()
                     .size(128));
             child(
-                new TextWidget<>(IKey.str(cartridge.getTitle())).fullWidth()
+                new TextWidget(IKey.str(cartridge.getTitle())).widthRel(1f)
                     .height(34)
-                    .textAlign(Alignment.CENTER)
+                    .alignment(Alignment.CENTER)
                     .style(EnumChatFormatting.WHITE));
             child(
-                new TextWidget<>(IKey.str(authorLabel)).fullWidth()
+                new TextWidget(IKey.str(authorLabel)).widthRel(1f)
                     .height(16)
-                    .textAlign(Alignment.CENTER)
+                    .alignment(Alignment.CENTER)
                     .style(EnumChatFormatting.GRAY));
             Flow actionRow = Flow.row()
                 .childPadding(2)
                 .mainAxisAlignment(Alignment.MainAxis.CENTER)
-                .fullWidth()
+                .widthRel(1f)
                 .height(20)
                 .child(
                     CommonWidgets.iconButton("icons/world_page", () -> openCartridgePage(cartridge))
                         .size(20)
-                        .padding(2));
+                        );
             if (isCartridgeDownloaded(cartridge)) {
                 actionRow.child(
                     CHECKMARK_ICON.asWidget()
@@ -450,7 +451,7 @@ public final class Pico8StoreScreen {
                 Pico8StoreScreen.this.downloadButtons.put(cartridge.getThreadId(), downloadButton);
                 actionRow.child(
                     downloadButton.size(20)
-                        .padding(2));
+                        );
             }
             child(actionRow);
         }
@@ -467,7 +468,7 @@ public final class Pico8StoreScreen {
                 0,
                 1,
                 1,
-                null);
+                false);
             this.threadId = cartridge.getThreadId();
             if (cartridge.getThumbnailUrl() != null) {
                 THUMBNAILS.computeIfAbsent(cartridge.getThreadId(), threadId -> {

@@ -1,7 +1,5 @@
 package com.yuelengm.pico8gtnh.client.command;
 
-import static com.yuelengm.pico8gtnh.Pico8GtnhMod.isClientOnlyMode;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -9,7 +7,6 @@ import java.util.Locale;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiChat;
 import net.minecraft.command.ICommandSender;
-import net.minecraft.util.ChatComponentTranslation;
 
 import com.gtnewhorizon.gtnhlib.commands.GTNHClientCommand;
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
@@ -37,11 +34,6 @@ public class Pico8ClientCommand extends GTNHClientCommand {
 
     @Override
     public void processCommand(ICommandSender sender, String[] args) {
-        if (!isClientOnlyMode()) {
-            addChatMessage(new ChatComponentTranslation("command.pico8.client_only"));
-            return;
-        }
-
         if (args.length != 1) {
             addChatMessage("Usage: " + getCommandUsage(sender));
             return;

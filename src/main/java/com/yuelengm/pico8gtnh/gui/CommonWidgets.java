@@ -12,7 +12,10 @@ public final class CommonWidgets {
 
     public static ButtonWidget<?> iconButton(String iconPath, Runnable action) {
         UITexture icon = UITexture.fullImage(Pico8GtnhMod.MODID, iconPath);
-        return new ButtonWidget<>().overlay(icon)
+        return new ButtonWidget<>().child(
+            icon.asWidget()
+                .size(16)
+                .center())
             .onMousePressed(mouseButton -> {
                 if (mouseButton != 0) {
                     return false;
