@@ -11,6 +11,7 @@ gui.pico8.online.sort_featured=Featured
 gui.pico8.online.sort_lucky=Lucky
 gui.pico8.online.previous=Previous
 gui.pico8.online.next=Next
+gui.pico8.online.page=Page %s
 gui.pico8.online.local=Local carts
 gui.pico8.online.download=Download & Play
 gui.pico8.online.downloading=Downloading...

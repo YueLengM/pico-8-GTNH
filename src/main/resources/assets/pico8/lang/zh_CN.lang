@@ -11,6 +11,7 @@ gui.pico8.online.sort_featured=精选
 gui.pico8.online.sort_lucky=随机
 gui.pico8.online.previous=上一页
 gui.pico8.online.next=下一页
+gui.pico8.online.page=第 %s 页
 gui.pico8.online.local=本地卡带
 gui.pico8.online.download=下载并运行
 gui.pico8.online.downloading=下载中……

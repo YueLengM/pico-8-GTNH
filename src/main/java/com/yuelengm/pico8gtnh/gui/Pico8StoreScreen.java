@@ -17,7 +17,6 @@ import net.minecraft.util.ResourceLocation;
 
 import com.cleanroommc.modularui.api.GuiAxis;
 import com.cleanroommc.modularui.api.drawable.IKey;
-import com.cleanroommc.modularui.drawable.GuiDraw;
 import com.cleanroommc.modularui.drawable.GuiTextures;
 import com.cleanroommc.modularui.drawable.Rectangle;
 import com.cleanroommc.modularui.drawable.UITexture;
@@ -40,7 +39,6 @@ import com.yuelengm.pico8gtnh.service.store.StorePage;
 /** In-game browser for cartridges published on the Lexaloffle BBS. */
 public final class Pico8StoreScreen {
 
-    private static final float PANEL_WIDTH_REL = 1f;
     private static final int PANEL_PADDING = 8;
     private static final int CARD_WIDTH = 130;
 
@@ -114,24 +112,27 @@ public final class Pico8StoreScreen {
     private ModularPanel buildPanel() {
         Flow column = Flow.column()
             .full()
-            .child(this.buildSearchRow())
-            .child(this.buildSortRow());
+            .childPadding(4)
+            .child(this.buildSearchRow());
 
         if (this.storePage.getState() == StorePage.State.LOADING) {
             column.child(
                 new TextWidget<>(IKey.lang("gui.pico8.online.loading")).expanded()
                     .fullWidth()
-                    .textAlign(Alignment.CENTER));
+                    .textAlign(Alignment.CENTER)
+                    .style(EnumChatFormatting.WHITE));
         } else if (this.storePage.getState() == StorePage.State.ERROR) {
             column.child(
                 new TextWidget<>(IKey.lang("gui.pico8.online.error")).expanded()
                     .fullWidth()
-                    .textAlign(Alignment.CENTER));
+                    .textAlign(Alignment.CENTER)
+                    .style(EnumChatFormatting.RED));
         } else if (this.status != null) {
             column.child(
                 new TextWidget<>(IKey.lang(this.status)).expanded()
                     .fullWidth()
-                    .textAlign(Alignment.CENTER));
+                    .textAlign(Alignment.CENTER)
+                    .style(EnumChatFormatting.WHITE));
         } else if (this.storePage.getCartridges()
             .isEmpty()) {
                 column.child(
@@ -144,7 +145,7 @@ public final class Pico8StoreScreen {
                     .alignment(Alignment.CENTER)
                     .expanded()
                     .scrollable()
-                    .background(new Rectangle().color(0xFF202020))
+                    .background(new Rectangle().color(0x80202020))
                     .gridOfWidthElements(
                         this.cartridgeGridColumns,
                         this.storePage.getCartridges(),
@@ -152,13 +153,15 @@ public final class Pico8StoreScreen {
                 column.child(this.cartridgeGrid);
             }
 
+        column.child(this.buildPageRow());
+
         return ModularPanel.defaultPanel("pico8_online_carts")
-            .widthRel(PANEL_WIDTH_REL)
-            .heightRel(1f)
+            .full()
             .padding(PANEL_PADDING)
-            .child(
-                column.child(this.buildPageRow())
-                    .child(this.buildActionRow()));
+            .background(new Rectangle().color(0x80202020))
+            .disableThemeBackground(true)
+            .disableHoverThemeBackground(true)
+            .child(column);
     }
 
     private int cardsPerRow() {
@@ -166,7 +169,7 @@ public final class Pico8StoreScreen {
             this.minecraft,
             this.minecraft.displayWidth,
             this.minecraft.displayHeight);
-        int gridWidth = (int) (resolution.getScaledWidth() * PANEL_WIDTH_REL) - PANEL_PADDING * 2;
+        int gridWidth = resolution.getScaledWidth() - PANEL_PADDING * 2;
         int columns = (gridWidth) / (CARD_WIDTH);
         return Math.max(1, columns);
     }
@@ -191,45 +194,33 @@ public final class Pico8StoreScreen {
     private Flow buildSearchRow() {
         this.searchField = new TextFieldWidget().value(new StringValue(this.storePage.getSearch()))
             .setMaxLength(80)
-            .expanded()
-            .height(20)
-            .background(new Rectangle().color(0xFF202020));
+            .expanded();
 
         return Flow.row()
             .childPadding(2)
             .fullWidth()
-            .height(22)
-            .child(this.searchField)
+            .height(18)
             .child(
-                textButton(
-                    "gui.pico8.online.search",
-                    () -> this.loadPage(
-                        this.storePage.withSearch(
-                            this.searchField.getText()
-                                .trim()))).width(70)
-                                    .fullHeight());
-    }
-
-    private Flow buildSortRow() {
-        return Flow.row()
-            .childPadding(2)
-            .fullWidth()
-            .height(20)
+                Flow.row()
+                    .widthRel(0.5f)
+                    .fullHeight()
+                    .childPadding(1)
+                    .child(sortButton("gui.pico8.online.sort_newest", OnlineCartService.Order.NEWEST).expanded())
+                    .child(sortButton("gui.pico8.online.sort_featured", OnlineCartService.Order.FEATURED).expanded())
+                    .child(sortButton("gui.pico8.online.sort_lucky", OnlineCartService.Order.LUCKY).expanded()))
             .child(
-                textButton(
-                    "gui.pico8.online.sort_newest",
-                    () -> this.loadPage(this.storePage.withOrder(OnlineCartService.Order.NEWEST))).expanded()
-                        .fullHeight())
-            .child(
-                textButton(
-                    "gui.pico8.online.sort_featured",
-                    () -> this.loadPage(this.storePage.withOrder(OnlineCartService.Order.FEATURED))).expanded()
-                        .fullHeight())
-            .child(
-                textButton(
-                    "gui.pico8.online.sort_lucky",
-                    () -> this.loadPage(this.storePage.withOrder(OnlineCartService.Order.LUCKY))).expanded()
-                        .fullHeight());
+                Flow.row()
+                    .widthRel(0.5f)
+                    .fullHeight()
+                    .child(this.searchField)
+                    .child(
+                        iconButton(
+                            "icons/searsh",
+                            () -> this.loadPage(
+                                this.storePage.withSearch(
+                                    this.searchField.getText()
+                                        .trim()))).width(18)
+                                            .fullHeight()));
     }
 
     private Flow buildPageRow() {
@@ -244,9 +235,10 @@ public final class Pico8StoreScreen {
             }).width(80)
                 .fullHeight())
             .child(
-                new TextWidget<>(IKey.str(this.storePage.getPageLabel())).expanded()
+                new TextWidget<>(IKey.lang("gui.pico8.online.page", this.storePage.getPageNumber())).expanded()
                     .fullHeight()
-                    .textAlign(Alignment.CENTER))
+                    .textAlign(Alignment.CENTER)
+                    .style(EnumChatFormatting.WHITE))
             .child(
                 textButton(
                     "gui.pico8.online.next",
@@ -254,22 +246,38 @@ public final class Pico8StoreScreen {
                         .fullHeight());
     }
 
-    private Flow buildActionRow() {
-        return Flow.row()
-            .childPadding(2)
-            .fullWidth()
-            .height(22)
-            .child(
-                textButton("gui.pico8.online.local", Pico8CartridgeScreen::open).width(110)
-                    .fullHeight())
-            .child(
-                new TextWidget<>(this.status == null ? IKey.str("") : IKey.lang(this.status)).expanded()
-                    .fullHeight()
-                    .textAlign(Alignment.CENTER));
-    }
-
     private static ButtonWidget<?> textButton(String labelKey, Runnable action) {
         return new ButtonWidget<>().overlay(IKey.lang(labelKey))
+            .onMousePressed(mouseButton -> {
+                if (mouseButton != 0) {
+                    return false;
+                }
+                action.run();
+                return true;
+            });
+    }
+
+    private ButtonWidget<?> sortButton(String labelKey, OnlineCartService.Order order) {
+        boolean selected = this.storePage.getOrder() == order;
+        return new ButtonWidget<>().background((context, x, y, width, height, widgetTheme) -> {
+            UITexture buttonTexture = selected ? GuiTextures.MC_BUTTON_HOVERED : GuiTextures.MC_BUTTON;
+            buttonTexture.draw(context, x, y, width, height, widgetTheme);
+        })
+            .hoverBackground(GuiTextures.MC_BUTTON_HOVERED::draw)
+            .overlay(IKey.lang(labelKey))
+            .onMousePressed(mouseButton -> {
+                if (mouseButton != 0) {
+                    return false;
+                }
+                this.loadPage(this.storePage.withOrder(order));
+                return true;
+            });
+    }
+
+    private static ButtonWidget<?> iconButton(String iconPath, Runnable action) {
+        UITexture icon = UITexture.fullImage(Pico8GtnhMod.MODID, iconPath);
+        return new ButtonWidget<>().padding(1)
+            .overlay(icon)
             .onMousePressed(mouseButton -> {
                 if (mouseButton != 0) {
                     return false;
@@ -361,16 +369,8 @@ public final class Pico8StoreScreen {
             child(
                 createDownloadButton(cartridge).width(CARD_WIDTH - 10)
                     .height(20));
-            background((context, x, y, width, height, widgetTheme) -> drawCardBackground(x, y, width, height));
+            background(new Rectangle().color(0x80202020));
         }
-    }
-
-    private void drawCardBackground(float x, float y, float width, float height) {
-        GuiDraw.drawRect(x, y, width, height, 0xFF292929);
-        GuiDraw.drawRect(x, y, width, 1, 0xFF505050);
-        GuiDraw.drawRect(x, y, 1, height, 0xFF505050);
-        GuiDraw.drawRect(x, y + height - 1, width, 1, 0xFF171717);
-        GuiDraw.drawRect(x + width - 1, y, 1, height, 0xFF171717);
     }
 
     private final class RemoteCartIcon extends UITexture {

@@ -73,7 +73,4 @@ public final class StorePage {
         return state;
     }
 
-    public String getPageLabel() {
-        return this.search.isEmpty() ? "Page " + this.pageNumber : "Page " + this.pageNumber + " · " + this.search;
-    }
 }
