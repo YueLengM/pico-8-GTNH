@@ -52,16 +52,7 @@ public final class OnlineCartService {
     }
 
     public List<OnlineCartridge> getCartridges(Order order, int page, String search) throws IOException {
-        StringBuilder query = new StringBuilder("use_hurl=1&cat=7&sub=2&page=").append(Math.max(1, page))
-            .append("&mode=carts&orderby=")
-            .append(encode(order.getParameter()));
-        if (search != null && !search.trim()
-            .isEmpty()) {
-            query.append("&search=")
-                .append(encode(search.trim()));
-        }
-
-        Document document = Jsoup.connect(BBS_ROOT + "lister.php?" + query)
+        Document document = Jsoup.connect(buildPageUrl(order, page, search))
             .userAgent("PICO-8-GTNH/1.0 (in-game cartridge browser)")
             .timeout(TIMEOUT_MILLIS)
             .maxBodySize(2 * 1024 * 1024)
@@ -94,6 +85,35 @@ public final class OnlineCartService {
             cartridges.add(new OnlineCartridge(threadId, title, author, thumbnailUrl));
         }
         return cartridges;
+    }
+
+    public URI getPageUri(StorePage page) throws IOException {
+        return URI.create(buildBrowserPageUrl(page.getOrder(), page.getPageNumber(), page.getSearch()));
+    }
+
+    private static String buildBrowserPageUrl(Order order, int page, String search) throws IOException {
+        StringBuilder url = new StringBuilder(BBS_ROOT).append("?cat=7#sub=2&page=")
+            .append(Math.max(1, page))
+            .append("&mode=carts&orderby=")
+            .append(encode(order.getParameter()));
+        if (search != null && !search.trim()
+            .isEmpty()) {
+            url.append("&search=")
+                .append(encode(search.trim()));
+        }
+        return url.toString();
+    }
+
+    private static String buildPageUrl(Order order, int page, String search) throws IOException {
+        StringBuilder query = new StringBuilder("use_hurl=1&cat=7&sub=2&page=").append(Math.max(1, page))
+            .append("&mode=carts&orderby=")
+            .append(encode(order.getParameter()));
+        if (search != null && !search.trim()
+            .isEmpty()) {
+            query.append("&search=")
+                .append(encode(search.trim()));
+        }
+        return BBS_ROOT + "lister.php?" + query;
     }
 
     public StorePage getPage(StorePage page) throws IOException {
