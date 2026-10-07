@@ -4,9 +4,13 @@
 A PICO-8 game runtime mod for Minecraft 1.7.10 / GTNH.
 
 ## Downloads
-| GTNH            | Download                                                                                                                           |
-|-----------------|------------------------------------------------------------------------------------------------------------------------------------|
-| 2.9.0 beta1-RC2 | [![Latest](https://img.shields.io/github/v/release/YueLengM/pico-8-GTNH)](https://github.com/YueLengM/pico-8-GTNH/releases/latest) |
+| GTNH            | Download                                                                                                                                   |
+|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| 2.9.0 beta1-RC2 | [![0.3.0](https://img.shields.io/badge/release-v0.3.0_2.9.0-orange)](https://github.com/YueLengM/pico-8-GTNH/releases/tag/0.3.0)           |
+| 2.8.4           | [![0.3.0](https://img.shields.io/badge/release-v0.3.0_2.8.4-orange)](https://github.com/YueLengM/pico-8-GTNH/releases/tag/0.3.0-GTNH2.8.4) |
+
+> [!NOTE]
+> 2.8.4: Client only. No block added, only command `/pico8`
 
 ## Credits
 
