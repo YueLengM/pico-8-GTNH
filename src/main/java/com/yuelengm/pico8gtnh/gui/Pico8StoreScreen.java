@@ -427,7 +427,7 @@ public final class Pico8StoreScreen {
             if (isCartridgeDownloaded(cartridge)) {
                 actionRow.child(
                     CHECKMARK_ICON.asWidget()
-                        .size(2)
+                        .size(20)
                         .margin(2));
             } else {
                 ButtonWidget<?> downloadButton = createDownloadButton(cartridge);
