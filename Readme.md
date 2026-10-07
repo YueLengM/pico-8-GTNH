@@ -2,6 +2,11 @@
 
 A PICO-8 game runtime mod for Minecraft 1.7.10 / GTNH.
 
+## Downloads
+| GTNH            | Download                                                                                                                           |
+|-----------------|------------------------------------------------------------------------------------------------------------------------------------|
+| 2.9.0 beta1-RC2 | [![Latest](https://img.shields.io/github/v/release/YueLengM/pico-8-GTNH)](https://github.com/YueLengM/pico-8-GTNH/releases/latest) |
+
 ## Credits
 
 - [PICO-R](https://github.com/mnmlyw/pico-r) — PICO-8 emulator.
