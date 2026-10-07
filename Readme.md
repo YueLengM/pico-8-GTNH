@@ -1,5 +1,6 @@
 # Pico-8 GTNH
 
+<img src="src/main/resources/pico8_console.png" >
 A PICO-8 game runtime mod for Minecraft 1.7.10 / GTNH.
 
 ## Downloads
