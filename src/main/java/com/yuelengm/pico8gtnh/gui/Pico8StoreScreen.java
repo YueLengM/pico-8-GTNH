@@ -1,6 +1,5 @@
 package com.yuelengm.pico8gtnh.gui;
 
-import java.awt.Desktop;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URI;
@@ -42,6 +41,7 @@ import com.yuelengm.pico8gtnh.service.CartService;
 import com.yuelengm.pico8gtnh.service.store.OnlineCartService;
 import com.yuelengm.pico8gtnh.service.store.OnlineCartridge;
 import com.yuelengm.pico8gtnh.service.store.StorePage;
+import com.yuelengm.pico8gtnh.util.Desktop;
 
 /** In-game browser for cartridges published on the Lexaloffle BBS. */
 public final class Pico8StoreScreen {
@@ -216,7 +216,7 @@ public final class Pico8StoreScreen {
                     .fullHeight()
                     .childPadding(1)
                     .child(
-                        CommonWidgets.iconButton("icons/world", this::openSearchPage)
+                        CommonWidgets.iconButton("icons/world", this::openInBrowser)
                             .size(20)
                             .padding(2))
                     .child(
@@ -306,32 +306,18 @@ public final class Pico8StoreScreen {
 
     private void openCartridgePage(OnlineCartridge cartridge) {
         try {
-            openInBrowser(URI.create("https://www.lexaloffle.com/bbs/?tid=" + cartridge.getThreadId()));
+            Desktop.browse(URI.create("https://www.lexaloffle.com/bbs/?tid=" + cartridge.getThreadId()));
         } catch (IOException | RuntimeException exception) {
             Pico8GtnhMod.LOG.warn("Could not open the Lexaloffle BBS page for {}", cartridge.getThreadId(), exception);
         }
     }
 
-    private void openSearchPage() {
-        String search = this.searchField.getText()
-            .trim();
-        StorePage page = search.equals(this.storePage.getSearch()) ? this.storePage : this.storePage.withSearch(search);
+    private void openInBrowser() {
         try {
-            openInBrowser(this.onlineCartService.getPageUri(page));
+            Desktop.browse(this.onlineCartService.getPageUri(this.storePage));
         } catch (IOException | RuntimeException exception) {
             Pico8GtnhMod.LOG.warn("Could not open the Lexaloffle BBS cartridge list", exception);
         }
-    }
-
-    private static void openInBrowser(URI uri) throws IOException {
-        if (!Desktop.isDesktopSupported()) {
-            throw new IOException("Desktop browser access is not supported on this system");
-        }
-        Desktop desktop = Desktop.getDesktop();
-        if (!desktop.isSupported(Desktop.Action.BROWSE)) {
-            throw new IOException("Opening web pages is not supported on this system");
-        }
-        desktop.browse(uri);
     }
 
     private void downloadCart(OnlineCartridge selected) {

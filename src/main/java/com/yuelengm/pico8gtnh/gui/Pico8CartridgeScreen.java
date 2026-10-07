@@ -1,6 +1,5 @@
 package com.yuelengm.pico8gtnh.gui;
 
-import java.awt.Desktop;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +30,7 @@ import com.cleanroommc.modularui.widgets.layout.Flow;
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
 import com.yuelengm.pico8gtnh.service.CartService;
 import com.yuelengm.pico8gtnh.service.Cartridge;
+import com.yuelengm.pico8gtnh.util.Desktop;
 
 /** Builds the MUI2 screen for choosing a local PICO-8 cartridge. */
 public final class Pico8CartridgeScreen {
@@ -199,14 +199,7 @@ public final class Pico8CartridgeScreen {
 
     private void openCartsFolder() {
         try {
-            if (!Desktop.isDesktopSupported()) {
-                throw new IOException("Desktop folder access is not supported on this system");
-            }
-            Desktop desktop = Desktop.getDesktop();
-            if (!desktop.isSupported(Desktop.Action.OPEN)) {
-                throw new IOException("Opening folders is not supported on this system");
-            }
-            desktop.open(this.cartService.cartsDirectory);
+            Desktop.openFolder(this.cartService.cartsDirectory);
         } catch (IOException | RuntimeException exception) {
             Pico8GtnhMod.LOG.error("Could not open PICO-8 cartridge folder", exception);
         }

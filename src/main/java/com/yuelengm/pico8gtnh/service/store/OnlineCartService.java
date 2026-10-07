@@ -1,14 +1,10 @@
 package com.yuelengm.pico8gtnh.service.store;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
-import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -17,9 +13,10 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+
+import com.yuelengm.pico8gtnh.util.Fetch;
 
 /** Fetches and downloads PICO-8 cartridges from the Lexaloffle BBS. */
 public final class OnlineCartService {
@@ -28,7 +25,6 @@ public final class OnlineCartService {
     private static final String HOST = "www.lexaloffle.com";
     private static final int TIMEOUT_MILLIS = 15000;
     private static final int MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024;
-    private static final byte[] PNG_SIGNATURE = { (byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A };
     private static final Pattern CART_DATA_ENTRY = Pattern.compile(
         "\\['[^']*'\\s*,\\s*(\\d+)\\s*,\\s*`([^`]+)`\\s*,\\s*\"([^\"]+)\"\\s*,\\s*[^,]+\\s*,\\s*[^,]+\\s*,\\s*\"[^\"]*\"\\s*,\\s*[^,]+\\s*,\\s*\"([^\"]*)\"");
     private static final Pattern DOWNLOAD_PATH = Pattern
@@ -52,11 +48,7 @@ public final class OnlineCartService {
     }
 
     public List<OnlineCartridge> getCartridges(Order order, int page, String search) throws IOException {
-        Document document = Jsoup.connect(buildPageUrl(order, page, search))
-            .userAgent("PICO-8-GTNH/1.0 (in-game cartridge browser)")
-            .timeout(TIMEOUT_MILLIS)
-            .maxBodySize(2 * 1024 * 1024)
-            .get();
+        Document document = Fetch.getDocument(buildPageUrl(order, page, search), TIMEOUT_MILLIS, 2 * 1024 * 1024);
         Element dataScript = document.selectFirst("script#cart_data_script");
         if (dataScript == null) {
             throw new IOException("The BBS response did not contain cartridge data");
@@ -123,11 +115,7 @@ public final class OnlineCartService {
     /** Downloads the selected cart to the local cart folder and returns the saved file. */
     public File download(OnlineCartridge cartridge, File cartsDirectory) throws IOException {
         String detailUrl = BBS_ROOT + "?tid=" + cartridge.getThreadId();
-        Document detail = Jsoup.connect(detailUrl)
-            .userAgent("PICO-8-GTNH/1.0 (in-game cartridge browser)")
-            .timeout(TIMEOUT_MILLIS)
-            .maxBodySize(2 * 1024 * 1024)
-            .get();
+        Document detail = Fetch.getDocument(detailUrl, TIMEOUT_MILLIS, 2 * 1024 * 1024);
 
         String downloadPath = findDownloadPath(detail);
         URI downloadUri = URI.create(BBS_ROOT)
@@ -155,7 +143,10 @@ public final class OnlineCartService {
         File temporaryFile = File.createTempFile("pico8-bbs-", ".download", cartsDirectory);
         boolean saved = false;
         try {
-            downloadPng(downloadUri.toURL(), temporaryFile);
+            URL finalUrl = Fetch.downloadPng(downloadUri.toURL(), temporaryFile, TIMEOUT_MILLIS, MAX_DOWNLOAD_BYTES);
+            if (!HOST.equalsIgnoreCase(finalUrl.getHost())) {
+                throw new IOException("The cartridge download redirected to an unexpected host");
+            }
             Files.move(temporaryFile.toPath(), destination.toPath(), StandardCopyOption.REPLACE_EXISTING);
             saved = true;
             return destination;
@@ -174,73 +165,6 @@ public final class OnlineCartService {
             }
         }
         throw new IOException("No downloadable PICO-8 cartridge was found on the detail page");
-    }
-
-    private static void downloadPng(java.net.URL url, File destination) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setConnectTimeout(TIMEOUT_MILLIS);
-        connection.setReadTimeout(TIMEOUT_MILLIS);
-        connection.setRequestProperty("User-Agent", "PICO-8-GTNH/1.0 (in-game cartridge browser)");
-        connection.setRequestProperty("Accept", "image/png,application/octet-stream;q=0.9,*/*;q=0.5");
-        connection.connect();
-        try {
-            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
-                throw new IOException("Cartridge download failed with HTTP " + connection.getResponseCode());
-            }
-            if (!HOST.equalsIgnoreCase(
-                connection.getURL()
-                    .getHost())) {
-                throw new IOException("The cartridge download redirected to an unexpected host");
-            }
-            int contentLength = connection.getContentLength();
-            if (contentLength > MAX_DOWNLOAD_BYTES) {
-                throw new IOException("The cartridge file is larger than 8 MB");
-            }
-
-            try (InputStream input = new BufferedInputStream(connection.getInputStream());
-                BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(destination))) {
-                byte[] buffer = new byte[8192];
-                byte[] signature = new byte[PNG_SIGNATURE.length];
-                int signatureBytes = readFully(input, signature);
-                if (signatureBytes != PNG_SIGNATURE.length || !matchesPngSignature(signature)) {
-                    throw new IOException("The downloaded file is not a PNG cartridge");
-                }
-                output.write(signature);
-
-                int totalBytes = signatureBytes;
-                int bytesRead;
-                while ((bytesRead = input.read(buffer)) != -1) {
-                    totalBytes += bytesRead;
-                    if (totalBytes > MAX_DOWNLOAD_BYTES) {
-                        throw new IOException("The cartridge file is larger than 8 MB");
-                    }
-                    output.write(buffer, 0, bytesRead);
-                }
-            }
-        } finally {
-            connection.disconnect();
-        }
-    }
-
-    private static int readFully(InputStream input, byte[] buffer) throws IOException {
-        int offset = 0;
-        while (offset < buffer.length) {
-            int bytesRead = input.read(buffer, offset, buffer.length - offset);
-            if (bytesRead < 0) {
-                break;
-            }
-            offset += bytesRead;
-        }
-        return offset;
-    }
-
-    private static boolean matchesPngSignature(byte[] signature) {
-        for (int index = 0; index < PNG_SIGNATURE.length; index++) {
-            if (signature[index] != PNG_SIGNATURE[index]) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static String encode(String value) throws UnsupportedEncodingException {
