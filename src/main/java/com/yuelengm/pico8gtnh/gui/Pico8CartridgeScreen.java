@@ -79,13 +79,19 @@ public final class Pico8CartridgeScreen {
                                 createLoadButton().expanded()
                                     .fullHeight())
                             .child(
-                                actionButton("icons/refresh", Pico8CartridgeScreen::open).width(20)
+                                CommonWidgets.iconButton("icons/refresh", Pico8CartridgeScreen::open)
+                                    .padding(2)
+                                    .width(20)
                                     .fullHeight())
                             .child(
-                                actionButton("icons/folder", this::openCartsFolder).width(20)
+                                CommonWidgets.iconButton("icons/folder", this::openCartsFolder)
+                                    .padding(2)
+                                    .width(20)
                                     .fullHeight())
                             .child(
-                                actionButton("icons/world", Pico8StoreScreen::open).width(20)
+                                CommonWidgets.iconButton("icons/add", Pico8StoreScreen::open)
+                                    .padding(2)
+                                    .width(20)
                                     .fullHeight())));
     }
 
@@ -133,20 +139,6 @@ public final class Pico8CartridgeScreen {
         GuiDraw.drawRect(x, y, 1, height, topLeftEdge);
         GuiDraw.drawRect(x, y + height - 1, width, 1, bottomRightEdge);
         GuiDraw.drawRect(x + width - 1, y, 1, height, bottomRightEdge);
-    }
-
-    private static ButtonWidget<?> actionButton(String iconPath, Runnable action) {
-        UITexture icon = UITexture.fullImage(Pico8GtnhMod.MODID, iconPath);
-
-        return new ButtonWidget<>().padding(2)
-            .overlay(icon)
-            .onMousePressed(mouseButton -> {
-                if (mouseButton != 0) {
-                    return false;
-                }
-                action.run();
-                return true;
-            });
     }
 
     private ButtonWidget<?> createLoadButton() {

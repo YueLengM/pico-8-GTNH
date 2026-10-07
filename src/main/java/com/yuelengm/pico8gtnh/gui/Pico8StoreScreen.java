@@ -216,7 +216,8 @@ public final class Pico8StoreScreen {
                     .fullHeight()
                     .childPadding(1)
                     .child(
-                        iconButton("icons/world", this::openSearchPage).size(20)
+                        CommonWidgets.iconButton("icons/world", this::openSearchPage)
+                            .size(20)
                             .padding(2))
                     .child(
                         sortButton("gui.pico8.online.sort_newest", OnlineCartService.Order.NEWEST).expanded()
@@ -233,13 +234,15 @@ public final class Pico8StoreScreen {
                     .fullHeight()
                     .child(this.searchField)
                     .child(
-                        iconButton(
-                            "icons/searsh",
-                            () -> this.loadPage(
-                                this.storePage.withSearch(
-                                    this.searchField.getText()
-                                        .trim()))).size(20)
-                                            .padding(2)));
+                        CommonWidgets
+                            .iconButton(
+                                "icons/searsh",
+                                () -> this.loadPage(
+                                    this.storePage.withSearch(
+                                        this.searchField.getText()
+                                            .trim())))
+                            .size(20)
+                            .padding(2)));
     }
 
     private Flow buildPageRow() {
@@ -247,11 +250,12 @@ public final class Pico8StoreScreen {
             .childPadding(2)
             .fullWidth()
             .height(20)
-            .child(textButton("gui.pico8.online.previous", () -> {
+            .child(CommonWidgets.textButton("gui.pico8.online.previous", () -> {
                 if (this.storePage.getPageNumber() > 1) {
                     this.loadPage(this.storePage.withPageNumber(this.storePage.getPageNumber() - 1));
                 }
-            }).width(80)
+            })
+                .width(80)
                 .fullHeight())
             .child(
                 new TextWidget<>(IKey.lang("gui.pico8.online.page", this.storePage.getPageNumber())).expanded()
@@ -259,21 +263,12 @@ public final class Pico8StoreScreen {
                     .textAlign(Alignment.CENTER)
                     .style(EnumChatFormatting.WHITE))
             .child(
-                textButton(
-                    "gui.pico8.online.next",
-                    () -> this.loadPage(this.storePage.withPageNumber(this.storePage.getPageNumber() + 1))).width(80)
-                        .fullHeight());
-    }
-
-    private static ButtonWidget<?> textButton(String labelKey, Runnable action) {
-        return new ButtonWidget<>().overlay(IKey.lang(labelKey))
-            .onMousePressed(mouseButton -> {
-                if (mouseButton != 0) {
-                    return false;
-                }
-                action.run();
-                return true;
-            });
+                CommonWidgets
+                    .textButton(
+                        "gui.pico8.online.next",
+                        () -> this.loadPage(this.storePage.withPageNumber(this.storePage.getPageNumber() + 1)))
+                    .width(80)
+                    .fullHeight());
     }
 
     private ButtonWidget<?> sortButton(String labelKey, OnlineCartService.Order order) {
@@ -293,20 +288,8 @@ public final class Pico8StoreScreen {
             });
     }
 
-    private static ButtonWidget<?> iconButton(String iconPath, Runnable action) {
-        UITexture icon = UITexture.fullImage(Pico8GtnhMod.MODID, iconPath);
-        return new ButtonWidget<>().overlay(icon)
-            .onMousePressed(mouseButton -> {
-                if (mouseButton != 0) {
-                    return false;
-                }
-                action.run();
-                return true;
-            });
-    }
-
     private ButtonWidget<?> createDownloadButton(OnlineCartridge cartridge) {
-        return iconButton("icons/download", () -> {
+        return CommonWidgets.iconButton("icons/download", () -> {
             if (isDownloadEnabled(cartridge)) {
                 this.downloadCart(cartridge);
             }
@@ -452,7 +435,8 @@ public final class Pico8StoreScreen {
                 .fullWidth()
                 .height(20)
                 .child(
-                    iconButton("icons/world_page", () -> openCartridgePage(cartridge)).size(20)
+                    CommonWidgets.iconButton("icons/world_page", () -> openCartridgePage(cartridge))
+                        .size(20)
                         .padding(2));
             if (isCartridgeDownloaded(cartridge)) {
                 actionRow.child(
