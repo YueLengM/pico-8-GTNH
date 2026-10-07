@@ -20,3 +20,4 @@ gui.pico8.runtime.reselect=Sneak + right click console: choose another cart
 gui.pico8.runtime.save=Save state
 gui.pico8.runtime.load=Load state
 gui.pico8.runtime.scale_auto=Auto
+command.pico8.client_only=This command is only available in pure client mode
