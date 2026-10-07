@@ -231,8 +231,7 @@ public final class Pico8StoreScreen {
                     .childPadding(1)
                     .child(
                         CommonWidgets.iconButton("icons/world", this::openInBrowser)
-                            .size(20)
-                            )
+                            .size(20))
                     .child(
                         sortButton("gui.pico8.online.sort_newest", OnlineCartService.Order.NEWEST).expanded()
                             .heightRel(1f))
@@ -255,8 +254,7 @@ public final class Pico8StoreScreen {
                                     this.storePage.withSearch(
                                         this.searchField.getText()
                                             .trim())))
-                            .size(20)
-                            ));
+                            .size(20)));
     }
 
     private Flow buildPageRow() {
@@ -439,8 +437,7 @@ public final class Pico8StoreScreen {
                 .height(20)
                 .child(
                     CommonWidgets.iconButton("icons/world_page", () -> openCartridgePage(cartridge))
-                        .size(20)
-                        );
+                        .size(20));
             if (isCartridgeDownloaded(cartridge)) {
                 actionRow.child(
                     CHECKMARK_ICON.asWidget()
@@ -449,9 +446,7 @@ public final class Pico8StoreScreen {
             } else {
                 ButtonWidget<?> downloadButton = createDownloadButton(cartridge);
                 Pico8StoreScreen.this.downloadButtons.put(cartridge.getThreadId(), downloadButton);
-                actionRow.child(
-                    downloadButton.size(20)
-                        );
+                actionRow.child(downloadButton.size(20));
             }
             child(actionRow);
         }
