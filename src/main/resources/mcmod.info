@@ -10,7 +10,7 @@
 		"updateUrl": "",
 		"authorList": ["YueLeng_M"],
 		"credits": "",
-		"logoFile": "",
+		"logoFile": "pico8_console.png",
 		"screenshots": [],
 		"parent": "",
 		"requiredMods": ["modularui2"],
