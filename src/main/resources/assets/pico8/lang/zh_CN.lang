@@ -20,3 +20,4 @@ gui.pico8.runtime.reselect=潜行+右键主机: 重新选择卡带
 gui.pico8.runtime.save=保存
 gui.pico8.runtime.load=读取
 gui.pico8.runtime.scale_auto=自适应
+command.pico8.client_only=命令仅纯客户端模式可用
