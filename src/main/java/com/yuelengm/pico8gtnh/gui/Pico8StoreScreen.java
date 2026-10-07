@@ -203,21 +203,30 @@ public final class Pico8StoreScreen {
     private Flow buildSearchRow() {
         this.searchField = new TextFieldWidget().value(new StringValue(this.storePage.getSearch()))
             .setMaxLength(80)
-            .expanded();
+            .expanded()
+            .fullHeight();
 
         return Flow.row()
             .childPadding(2)
             .fullWidth()
-            .height(18)
+            .height(20)
             .child(
                 Flow.row()
                     .widthRel(0.5f)
                     .fullHeight()
                     .childPadding(1)
-                    .child(iconButton("icons/world", this::openSearchPage).size(18))
-                    .child(sortButton("gui.pico8.online.sort_newest", OnlineCartService.Order.NEWEST).expanded())
-                    .child(sortButton("gui.pico8.online.sort_featured", OnlineCartService.Order.FEATURED).expanded())
-                    .child(sortButton("gui.pico8.online.sort_lucky", OnlineCartService.Order.LUCKY).expanded()))
+                    .child(
+                        iconButton("icons/world", this::openSearchPage).size(20)
+                            .padding(2))
+                    .child(
+                        sortButton("gui.pico8.online.sort_newest", OnlineCartService.Order.NEWEST).expanded()
+                            .fullHeight())
+                    .child(
+                        sortButton("gui.pico8.online.sort_featured", OnlineCartService.Order.FEATURED).expanded()
+                            .fullHeight())
+                    .child(
+                        sortButton("gui.pico8.online.sort_lucky", OnlineCartService.Order.LUCKY).expanded()
+                            .fullHeight()))
             .child(
                 Flow.row()
                     .widthRel(0.5f)
@@ -229,8 +238,8 @@ public final class Pico8StoreScreen {
                             () -> this.loadPage(
                                 this.storePage.withSearch(
                                     this.searchField.getText()
-                                        .trim()))).width(18)
-                                            .fullHeight()));
+                                        .trim()))).size(20)
+                                            .padding(2)));
     }
 
     private Flow buildPageRow() {
@@ -286,8 +295,7 @@ public final class Pico8StoreScreen {
 
     private static ButtonWidget<?> iconButton(String iconPath, Runnable action) {
         UITexture icon = UITexture.fullImage(Pico8GtnhMod.MODID, iconPath);
-        return new ButtonWidget<>().padding(1)
-            .overlay(icon)
+        return new ButtonWidget<>().overlay(icon)
             .onMousePressed(mouseButton -> {
                 if (mouseButton != 0) {
                     return false;
@@ -427,8 +435,7 @@ public final class Pico8StoreScreen {
             paddingBottom(4);
             child(
                 new RemoteCartIcon(cartridge).asWidget()
-                    .width(128)
-                    .height(128));
+                    .size(128));
             child(
                 new TextWidget<>(IKey.str(cartridge.getTitle())).fullWidth()
                     .height(34)
@@ -445,22 +452,19 @@ public final class Pico8StoreScreen {
                 .fullWidth()
                 .height(20)
                 .child(
-                    iconButton("icons/world_page", () -> openCartridgePage(cartridge)).width(20)
-                        .fullHeight()
-                        .padding(1));
+                    iconButton("icons/world_page", () -> openCartridgePage(cartridge)).size(20)
+                        .padding(2));
             if (isCartridgeDownloaded(cartridge)) {
                 actionRow.child(
                     CHECKMARK_ICON.asWidget()
-                        .width(16)
-                        .height(16)
-                        .margin(1));
+                        .size(2)
+                        .margin(2));
             } else {
                 ButtonWidget<?> downloadButton = createDownloadButton(cartridge);
                 Pico8StoreScreen.this.downloadButtons.put(cartridge.getThreadId(), downloadButton);
                 actionRow.child(
-                    downloadButton.width(20)
-                        .padding(1)
-                        .fullHeight());
+                    downloadButton.size(20)
+                        .padding(2));
             }
             child(actionRow);
         }
