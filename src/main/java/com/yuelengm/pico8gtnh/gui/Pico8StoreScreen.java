@@ -3,8 +3,10 @@ package com.yuelengm.pico8gtnh.gui;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -121,7 +123,7 @@ public final class Pico8StoreScreen {
             this.screen.registerFrameUpdateListener(this.cartridgeGrid, this::refreshGridColumns);
         }
         if (this.downloadingCart != null) {
-            this.openDownloadDialog(this.downloadingCart);
+            this.showDownloadDialog(this.downloadingCart);
         }
     }
 
@@ -155,10 +157,7 @@ public final class Pico8StoreScreen {
                     .alignment(Alignment.CENTER)
                     .expanded()
                     .scrollable()
-                    .gridOfWidthElements(
-                        this.cartridgeGridColumns,
-                        this.storePage.getCartridges(),
-                        (x, y, index, cartridge) -> new CartridgeCard(cartridge));
+                    .gridOf(1, this.createCartridgeRows());
                 column.child(this.cartridgeGrid);
             }
 
@@ -181,6 +180,23 @@ public final class Pico8StoreScreen {
         int gridWidth = resolution.getScaledWidth() - PANEL_PADDING * 2;
         int columns = (gridWidth) / (CARD_WIDTH);
         return Math.max(1, columns);
+    }
+
+    private List<Flow> createCartridgeRows() {
+        List<OnlineCartridge> cartridges = this.storePage.getCartridges();
+        List<Flow> rows = new ArrayList<>();
+        for (int start = 0; start < cartridges.size(); start += this.cartridgeGridColumns) {
+            Flow row = Flow.row()
+                .fullWidth()
+                .coverChildrenHeight()
+                .mainAxisAlignment(Alignment.MainAxis.CENTER);
+            int end = Math.min(start + this.cartridgeGridColumns, cartridges.size());
+            for (int index = start; index < end; index++) {
+                row.child(new CartridgeCard(cartridges.get(index)));
+            }
+            rows.add(row);
+        }
+        return rows;
     }
 
     private void refreshGridColumns() {
@@ -325,7 +341,7 @@ public final class Pico8StoreScreen {
             return;
         }
         this.downloadingCart = selected;
-        this.openDownloadDialog(selected);
+        this.showDownloadDialog(selected);
         NETWORK_EXECUTOR.submit(() -> {
             try {
                 this.onlineCartService.download(selected, this.cartService.cartsDirectory);
@@ -359,7 +375,7 @@ public final class Pico8StoreScreen {
         button.overlay(CHECKMARK_ICON);
     }
 
-    private void openDownloadDialog(OnlineCartridge cartridge) {
+    private void showDownloadDialog(OnlineCartridge cartridge) {
         this.downloadingCartTitle = cartridge.getTitle();
         if (this.downloadDialogHandler == null) {
             this.downloadDialogHandler = IPanelHandler.simple(this.screen.getMainPanel(), (parentPanel, player) -> {
