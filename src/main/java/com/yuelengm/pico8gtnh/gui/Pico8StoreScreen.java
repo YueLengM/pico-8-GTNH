@@ -40,7 +40,7 @@ import com.yuelengm.pico8gtnh.service.store.StorePage;
 /** In-game browser for cartridges published on the Lexaloffle BBS. */
 public final class Pico8StoreScreen {
 
-    private static final float PANEL_WIDTH_REL = 0.9f;
+    private static final float PANEL_WIDTH_REL = 1f;
     private static final int PANEL_PADDING = 8;
     private static final int CARD_WIDTH = 130;
 
@@ -64,6 +64,7 @@ public final class Pico8StoreScreen {
     private TextFieldWidget searchField;
     private Grid cartridgeGrid;
     private int cartridgeGridColumns;
+    private boolean gridRebuildQueued;
 
     private Pico8StoreScreen() {}
 
@@ -153,7 +154,7 @@ public final class Pico8StoreScreen {
 
         return ModularPanel.defaultPanel("pico8_online_carts")
             .widthRel(PANEL_WIDTH_REL)
-            .heightRel(0.8f)
+            .heightRel(1f)
             .padding(PANEL_PADDING)
             .child(
                 column.child(this.buildPageRow())
@@ -171,20 +172,19 @@ public final class Pico8StoreScreen {
     }
 
     private void refreshGridColumns() {
-        if (this.cartridgeGrid == null || this.cartridgeGrid.getArea()
-            .w() <= 0) {
+        if (this.cartridgeGrid == null) {
             return;
         }
-        int columns = Math.max(
-            1,
-            this.cartridgeGrid.getArea()
-                .w() / CARD_WIDTH);
-        if (columns != this.cartridgeGridColumns) {
-            this.cartridgeGridColumns = columns;
-            this.cartridgeGrid.gridOfWidthElements(
-                columns,
-                this.storePage.getCartridges(),
-                (x, y, index, cartridge) -> new CartridgeCard(cartridge));
+        int columns = this.cardsPerRow();
+        if (columns != this.cartridgeGridColumns && !this.gridRebuildQueued) {
+            this.gridRebuildQueued = true;
+            ModularScreen screenToRefresh = this.screen;
+            this.minecraft.func_152344_a(() -> {
+                this.gridRebuildQueued = false;
+                if (ModularScreen.getCurrent() == screenToRefresh) {
+                    this.showPage();
+                }
+            });
         }
     }
 
