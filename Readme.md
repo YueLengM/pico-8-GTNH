@@ -3,10 +3,8 @@
 <img src="src/main/resources/pico8_console.png" >
 A PICO-8 game runtime mod for Minecraft 1.7.10 / GTNH.
 
-## Downloads
-| GTNH  | Download                                                                                                                           |
-|-------|------------------------------------------------------------------------------------------------------------------------------------|
-| 2.8.4 | [![Latest](https://img.shields.io/github/v/release/YueLengM/pico-8-GTNH)](https://github.com/YueLengM/pico-8-GTNH/releases/latest) |
+> [!NOTE]
+> GTNH 2.8.4 Version is client mode only. Use `/pico8` command.
 
 ## Credits
 
