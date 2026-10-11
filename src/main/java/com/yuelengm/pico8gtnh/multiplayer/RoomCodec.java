@@ -43,7 +43,6 @@ public final class RoomCodec {
             uuid(out, room.host);
             out.writeUTF(room.hostName);
             out.writeUTF(room.cartName);
-            out.writeUTF(room.cartHash);
             out.writeUTF(room.runtimeHash);
             out.writeInt(room.fps);
             out.writeLong(room.epoch);
@@ -67,7 +66,6 @@ public final class RoomCodec {
             room.host = uuid(in);
             room.hostName = in.readUTF();
             room.cartName = in.readUTF();
-            room.cartHash = in.readUTF();
             room.runtimeHash = in.readUTF();
             room.fps = in.readInt();
             room.epoch = in.readLong();

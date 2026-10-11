@@ -14,6 +14,9 @@ import cpw.mods.fml.relauncher.Side;
 
 public final class RoomNetwork {
 
+    /** Temporarily disabled while measuring full-memory snapshot restore and replay costs. */
+    public static final boolean LATENCY_KICKS_ENABLED = false;
+
     private static SimpleNetworkWrapper channel;
 
     private RoomNetwork() {}

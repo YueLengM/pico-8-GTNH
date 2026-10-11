@@ -1,8 +1,6 @@
 package com.yuelengm.pico8gtnh.multiplayer;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -33,7 +31,6 @@ public final class RoomServer {
     private final Map<UUID, UUID> memberships = new HashMap<>();
     private final Map<UUID, Long> cooldowns = new HashMap<>();
     private final Map<UUID, Waiting> waiting = new HashMap<>();
-    private final Map<UUID, Download> downloads = new HashMap<>();
     private final ArrayBlockingQueue<Runnable> inbound = new ArrayBlockingQueue<>(4096);
     private final Set<UUID> overflowed = ConcurrentHashMap.newKeySet();
 
@@ -49,8 +46,6 @@ public final class RoomServer {
         final RoomInfo info;
         final Map<UUID, Progress> progress = new LinkedHashMap<>();
         final Deque<UUID> syncQueue = new ArrayDeque<>();
-        Path cart;
-        ChunkTransfer.Receiver upload;
         UUID syncing;
         long syncStarted;
         long syncToken;
@@ -73,16 +68,6 @@ public final class RoomServer {
         }
     }
 
-    private static final class Download {
-
-        final ChunkTransfer.Sender sender;
-        final long started = System.nanoTime();
-
-        Download(ChunkTransfer.Sender sender) {
-            this.sender = sender;
-        }
-    }
-
     private RoomServer() {}
 
     public void enqueue(EntityPlayerMP player, RoomPacket packet) {
@@ -95,9 +80,8 @@ public final class RoomServer {
                     .warn("Invalid PICO-8 room operation from {}", player.getCommandSenderName(), exception);
                 error(player, packet.room, "gui.pico8.room.transfer_error");
                 ServerRoom room = rooms.get(packet.room);
-                if (room != null && room.info.host.equals(player.getUniqueID())) room.upload = null;
-                else leave(player.getUniqueID(), "gui.pico8.room.transfer_error");
-                downloads.remove(player.getUniqueID());
+                if (room == null || !room.info.host.equals(player.getUniqueID()))
+                    leave(player.getUniqueID(), "gui.pico8.room.transfer_error");
             }
         })) overflowed.add(player.getUniqueID());
     }
@@ -155,7 +139,6 @@ public final class RoomServer {
         }
         if (packet.kind == RoomPacket.Kind.LEAVE) {
             waiting.remove(id);
-            downloads.remove(id);
             if (packet.room.equals(memberships.get(id))) leave(id, "gui.pico8.room.left");
             return;
         }
@@ -165,8 +148,8 @@ public final class RoomServer {
                 return;
             }
             RoomInfo info = RoomCodec.room(packet.data);
-            if (info.cartName.length() > 128 || !info.cartHash.matches("[0-9a-f]{64}")
-                || !info.runtimeHash.matches("[0-9a-f]{64}")) throw new IOException("Invalid cartridge metadata");
+            if (info.cartName.length() > 128 || !info.runtimeHash.matches("[0-9a-f]{64}"))
+                throw new IOException("Invalid cartridge metadata");
             info.id = packet.room;
             if (info.id.equals(RoomPacket.NONE) || rooms.containsKey(info.id)) throw new IOException("Duplicate room");
             info.host = id;
@@ -183,7 +166,6 @@ public final class RoomServer {
             rooms.put(info.id, room);
             memberships.put(id, info.id);
             waiting.remove(id);
-            downloads.remove(id);
             RoomPacket created = new RoomPacket(RoomPacket.Kind.CREATED, info.id);
             created.data = RoomCodec.room(info);
             send(id, created);
@@ -195,17 +177,6 @@ public final class RoomServer {
             return;
         }
         boolean host = room.info.host.equals(id);
-        if (packet.kind == RoomPacket.Kind.CART_REQUEST) {
-            if (!room.info.published || room.cart == null || downloads.containsKey(id)) {
-                error(player, packet.room, "gui.pico8.room.unavailable");
-                return;
-            }
-            byte[] bytes = Files.readAllBytes(room.cart);
-            downloads.put(
-                id,
-                new Download(new ChunkTransfer.Sender(RoomPacket.Kind.CART_CHUNK, room.info.id, id, 0, now, bytes)));
-            return;
-        }
         if (packet.kind == RoomPacket.Kind.JOIN) {
             join(player, packet);
             return;
@@ -215,29 +186,8 @@ public final class RoomServer {
         switch (packet.kind) {
             case VISIBILITY:
                 if (!host) return;
-                if (!packet.flag) {
-                    room.info.published = false;
-                    room.upload = null;
-                    members(room);
-                } else if (room.cart != null) {
-                    room.info.published = true;
-                    members(room);
-                }
-                break;
-            case UPLOAD:
-                if (!host || room.info.published) return;
-                if (packet.a == 0) room.upload = new ChunkTransfer.Receiver();
-                if (room.upload == null) throw new IOException("Upload has no start");
-                byte[] complete = room.upload.accept(packet, RoomPacket.MAX_CART);
-                if (complete != null) {
-                    if (!RoomCodec.hash(complete)
-                        .equals(room.info.cartHash)) throw new IOException("Cartridge changed");
-                    if (room.cart == null) room.cart = Files.createTempFile("pico8-room-", ".cart");
-                    Files.write(room.cart, complete);
-                    room.upload = null;
-                    room.info.published = true;
-                    members(room);
-                }
+                room.info.published = packet.flag;
+                members(room);
                 break;
             case INPUT:
                 RoomInfo.Member member = room.info.member(id);
@@ -327,7 +277,6 @@ public final class RoomServer {
                 room.info.epoch = packet.epoch;
                 room.syncQueue.clear();
                 room.syncing = null;
-                room.upload = null;
                 for (Map.Entry<UUID, Progress> entry : room.progress.entrySet()) {
                     room.info.member(entry.getKey()).controlFrame = 0;
                     Progress state = entry.getValue();
@@ -343,8 +292,9 @@ public final class RoomServer {
                 requestNext(room);
                 break;
             case KICK:
-                if (host && !packet.player.equals(id) && room.progress.containsKey(packet.player))
-                    leave(packet.player, "gui.pico8.room.latency");
+                if (RoomNetwork.LATENCY_KICKS_ENABLED && host
+                    && !packet.player.equals(id)
+                    && room.progress.containsKey(packet.player)) leave(packet.player, "gui.pico8.room.latency");
                 break;
             default:
                 break;
@@ -357,7 +307,8 @@ public final class RoomServer {
     }
 
     private boolean withinHistory(ServerRoom room, long frame, long now) {
-        return frame >= 0 && Math.abs(estimatedHost(room, now) - frame) <= room.info.fps;
+        return frame >= 0
+            && (!RoomNetwork.LATENCY_KICKS_ENABLED || Math.abs(estimatedHost(room, now) - frame) <= room.info.fps);
     }
 
     private void join(EntityPlayerMP player, RoomPacket packet) throws IOException {
@@ -365,10 +316,9 @@ public final class RoomServer {
         ServerRoom room = rooms.get(packet.room);
         long now = System.nanoTime();
         if (room == null || !room.info.published
-            || room.cart == null
             || memberships.containsKey(id)
             || room.info.members.size() >= MAX_MEMBERS
-            || !packet.text.equals(room.info.cartHash + ":" + room.info.runtimeHash)) {
+            || !packet.text.equals(room.info.runtimeHash)) {
             error(player, packet.room, "gui.pico8.room.unavailable");
             waiting.remove(id);
             return;
@@ -382,7 +332,6 @@ public final class RoomServer {
             return;
         }
         waiting.remove(id);
-        downloads.remove(id);
         room.info.members.add(new RoomInfo.Member(id, player.getCommandSenderName(), false));
         room.progress.put(id, new Progress());
         memberships.put(id, room.info.id);
@@ -410,7 +359,6 @@ public final class RoomServer {
     private void leave(UUID id, String reason) {
         UUID roomId = memberships.remove(id);
         waiting.remove(id);
-        downloads.remove(id);
         if (roomId == null) return;
         cooldowns.put(id, System.nanoTime() + 5 * SECOND);
         ServerRoom room = rooms.get(roomId);
@@ -424,9 +372,6 @@ public final class RoomServer {
                 cooldowns.put(member, System.nanoTime() + 5 * SECOND);
             }
             rooms.remove(roomId);
-            downloads.entrySet()
-                .removeIf(entry -> entry.getValue().sender.room.equals(roomId));
-            deleteCart(room);
             return;
         }
         Progress departed = room.progress.remove(id);
@@ -453,20 +398,10 @@ public final class RoomServer {
         }
     }
 
-    private void deleteCart(ServerRoom room) {
-        if (room.cart != null) try {
-            Files.deleteIfExists(room.cart);
-        } catch (IOException exception) {
-            Pico8GtnhMod.LOG.warn("Could not remove temporary room cartridge {}", room.cart, exception);
-        }
-    }
-
     public void clear() {
-        for (ServerRoom room : rooms.values()) deleteCart(room);
         rooms.clear();
         memberships.clear();
         waiting.clear();
-        downloads.clear();
         cooldowns.clear();
         inbound.clear();
         overflowed.clear();
@@ -482,7 +417,7 @@ public final class RoomServer {
         if (event.phase != TickEvent.Phase.END) return;
         for (UUID id : new ArrayList<>(overflowed)) {
             overflowed.remove(id);
-            leave(id, "gui.pico8.room.latency");
+            leave(id, "gui.pico8.room.transfer_error");
         }
         Runnable task;
         for (int i = 0; i < 512 && (task = inbound.poll()) != null; i++) task.run();
@@ -496,20 +431,7 @@ public final class RoomServer {
                 error(player, entry.getValue().packet.room, "gui.pico8.room.transfer_error");
             }
         }
-        for (Map.Entry<UUID, Download> entry : new ArrayList<>(downloads.entrySet())) {
-            Download download = entry.getValue();
-            ServerRoom room = rooms.get(download.sender.room);
-            if (online(entry.getKey()) == null || room == null
-                || !room.info.published
-                || now - download.started > 30 * SECOND) {
-                downloads.remove(entry.getKey());
-                continue;
-            }
-            for (int i = 0; i < 4 && !download.sender.done(); i++) send(entry.getKey(), download.sender.next());
-            if (download.sender.done()) downloads.remove(entry.getKey());
-        }
         for (ServerRoom room : new ArrayList<>(rooms.values())) {
-            if (room.upload != null && now - room.upload.started > 30 * SECOND) room.upload = null;
             if (room.syncing != null && now - room.syncStarted > 30 * SECOND)
                 leave(room.syncing, "gui.pico8.room.join_timeout");
             for (Map.Entry<UUID, Progress> entry : new ArrayList<>(room.progress.entrySet())) {
@@ -518,7 +440,7 @@ public final class RoomServer {
                 Progress progress = entry.getValue();
                 if (!progress.ready && now - progress.joined > 60 * SECOND)
                     leave(entry.getKey(), "gui.pico8.room.join_timeout");
-                else if (progress.ready && now - progress.clock > 5 * SECOND)
+                else if (RoomNetwork.LATENCY_KICKS_ENABLED && progress.ready && now - progress.clock > 5 * SECOND)
                     leave(entry.getKey(), "gui.pico8.room.latency");
             }
         }

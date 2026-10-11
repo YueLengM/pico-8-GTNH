@@ -82,8 +82,8 @@ public final class PicoRScreen extends GuiScreen {
     private boolean roomAttached;
     private int firstMember;
 
-    public static PicoRScreen joinRoom(File cartFile) {
-        PicoRScreen screen = new PicoRScreen(cartFile, true);
+    public static PicoRScreen joinRoom() {
+        PicoRScreen screen = new PicoRScreen(null, true);
         screen.joiningRoom = true;
         return screen;
     }
@@ -111,13 +111,16 @@ public final class PicoRScreen extends GuiScreen {
             texturePixels = null;
         }
         try {
-            if (cartFile == null) {
+            if (cartFile == null && !joiningRoom) {
                 throw new IOException("Cartridge file does not exist");
             }
-            if (startFresh) {
+            if (joiningRoom && session == null) {
+                session = PicoRSession.startRoomGuest();
+                startFresh = false;
+            } else if (startFresh) {
                 session = PicoRSession.startNew(cartFile);
                 startFresh = false;
-            } else {
+            } else if (!joiningRoom) {
                 session = PicoRSession.resume(cartFile);
             }
             runtime = session.getRuntime();
@@ -130,7 +133,7 @@ public final class PicoRScreen extends GuiScreen {
             texturePixels = texture.getTextureData();
             mc.getTextureManager()
                 .loadTexture(textureLocation, texture);
-            copyFrameToTexture();
+            if (!joiningRoom || RoomClient.INSTANCE.ready()) copyFrameToTexture();
             lastFrameNanos = System.nanoTime();
         } catch (IOException | RuntimeException | LinkageError exception) {
             if (RoomClient.INSTANCE.active()) RoomClient.INSTANCE.leave(false);
@@ -217,6 +220,10 @@ public final class PicoRScreen extends GuiScreen {
     }
 
     private void runGameFrames() {
+        if (RoomClient.INSTANCE.active() && !RoomClient.INSTANCE.ready()) {
+            lastFrameNanos = System.nanoTime();
+            return;
+        }
         long now = System.nanoTime();
         long frameInterval = NANOS_PER_SECOND / runtime.getFramesPerSecond();
         long overdueFrames = (now - lastFrameNanos) / frameInterval;
@@ -285,9 +292,7 @@ public final class PicoRScreen extends GuiScreen {
         RoomInfo room = client.room();
         if (room == null) return;
         drawRect(4, 4, 184, 38 + 18 * Math.min(memberRows(), room.members.size()), 0xC0202020);
-        String roomTitle = client.status()
-            .equals("gui.pico8.room.uploading") ? client.status()
-                : room.published ? "gui.pico8.room.public" : "gui.pico8.room.private";
+        String roomTitle = room.published ? "gui.pico8.room.public" : "gui.pico8.room.private";
         drawString(fontRendererObj, StatCollector.translateToLocal(roomTitle), 8, 8, 0xFFFFFF);
         if (client.isHost()) drawString(
             fontRendererObj,
@@ -472,7 +477,9 @@ public final class PicoRScreen extends GuiScreen {
     }
 
     private void drawScreenText() {
-        drawCenteredString(fontRendererObj, cartFile.getName(), width / 2, pixelToGuiY(HINT_GAP), 0xFFFFFFFF);
+        RoomInfo room = RoomClient.INSTANCE.room();
+        String title = cartFile != null ? cartFile.getName() : room != null ? room.cartName : "PICO-8";
+        drawCenteredString(fontRendererObj, title, width / 2, pixelToGuiY(HINT_GAP), 0xFFFFFFFF);
         drawCenteredString(
             fontRendererObj,
             StatCollector.translateToLocal("gui.pico8.runtime.reselect"),

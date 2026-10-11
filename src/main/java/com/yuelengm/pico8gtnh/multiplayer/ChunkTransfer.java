@@ -43,9 +43,7 @@ public final class ChunkTransfer {
             packet.a = offset;
             packet.b = bytes.length;
             packet.text = hash;
-            int packetSize = kind == RoomPacket.Kind.UPLOAD || kind == RoomPacket.Kind.CART_CHUNK
-                ? RoomPacket.CART_PACKET_SIZE
-                : RoomPacket.CHUNK_SIZE;
+            int packetSize = RoomPacket.CHUNK_SIZE;
             int end = Math.min(bytes.length, offset + packetSize);
             packet.data = Arrays.copyOfRange(bytes, offset, end);
             offset = end;

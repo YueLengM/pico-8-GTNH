@@ -1,5 +1,6 @@
 package com.yuelengm.pico8gtnh.service;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -8,6 +9,11 @@ import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.Collections;
+import java.util.zip.Deflater;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+
+import com.yuelengm.pico8gtnh.Pico8GtnhMod;
 
 import io.github.kawamuray.wasmtime.Engine;
 import io.github.kawamuray.wasmtime.Func;
@@ -24,6 +30,17 @@ public final class PicoRRuntime implements AutoCloseable {
     public static final int SCREEN_WIDTH = 128;
     public static final int SCREEN_HEIGHT = 128;
     public static final int AUDIO_SAMPLE_RATE = 22050;
+    public static final int MAX_MEMORY_BYTES = 128 * 1024 * 1024;
+    private static final int WASM_PAGE_BYTES = 65536;
+
+    private static final class SnapshotGzip extends GZIPOutputStream {
+
+        SnapshotGzip(ByteArrayOutputStream output) throws IOException {
+            super(output, 8192);
+            def.setLevel(Deflater.BEST_SPEED);
+        }
+    }
+
     private static final int MAX_AUDIO_SAMPLES = 4096;
 
     private final Engine engine;
@@ -214,6 +231,7 @@ public final class PicoRRuntime implements AutoCloseable {
 
     /** Restores a state previously returned by {@link #saveState()}. */
     public void loadState(byte[] state) {
+        Pico8GtnhMod.LOG.info("PICO-R load state");
         ensureCartLoaded();
         if (state == null || state.length == 0) {
             throw new IllegalArgumentException("Saved state must not be empty");
@@ -230,7 +248,9 @@ public final class PicoRRuntime implements AutoCloseable {
             }
             target.position(pointer);
             target.put(state);
-            loadStateFunction.call(store, Val.fromI32(pointer), Val.fromI32(state.length));
+            int result = callI32(loadStateFunction, Val.fromI32(pointer), Val.fromI32(state.length));
+            if (result != 0)
+                throw new IllegalStateException("PICO-R could not restore saved state (error " + result + ")");
         } finally {
             free.call(store, Val.fromI32(pointer), Val.fromI32(state.length));
         }
@@ -238,6 +258,57 @@ public final class PicoRRuntime implements AutoCloseable {
 
     public int getWasmMemoryPages() {
         return memory.size(store);
+    }
+
+    /** Independent gzip snapshot of the complete linear memory, taken between WASM calls. */
+    public byte[] saveMemoryState() {
+        ByteBuffer source = memoryBuffer();
+        if (source.capacity() > MAX_MEMORY_BYTES) throw new IllegalStateException("WASM memory snapshot too large");
+        try {
+            ByteArrayOutputStream compressed = new ByteArrayOutputStream();
+            try (GZIPOutputStream gzip = new SnapshotGzip(compressed)) {
+                byte[] block = new byte[8192];
+                source.clear();
+                while (source.hasRemaining()) {
+                    int count = Math.min(block.length, source.remaining());
+                    source.get(block, 0, count);
+                    gzip.write(block, 0, count);
+                }
+            }
+            return compressed.toByteArray();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not compress WASM memory", exception);
+        }
+    }
+
+    public void loadMemoryState(byte[] compressed) {
+        try {
+            ByteArrayOutputStream raw = new ByteArrayOutputStream();
+            try (GZIPInputStream gzip = new GZIPInputStream(new ByteArrayInputStream(compressed))) {
+                byte[] block = new byte[8192];
+                int count;
+                while ((count = gzip.read(block)) != -1) {
+                    if ((long) raw.size() + count > MAX_MEMORY_BYTES)
+                        throw new IOException("Inflated WASM memory exceeds limit");
+                    raw.write(block, 0, count);
+                }
+            }
+            byte[] state = raw.toByteArray();
+            if (state.length == 0 || state.length % WASM_PAGE_BYTES != 0)
+                throw new IOException("Invalid WASM memory size");
+            int pages = state.length / WASM_PAGE_BYTES;
+            if (memory.size(store) < pages) memory.grow(store, pages - memory.size(store));
+            ByteBuffer target = memoryBuffer();
+            if (target.capacity() < state.length) throw new IOException("Could not grow WASM memory");
+            target.clear();
+            target.put(state);
+            // Linear memory cannot shrink; clear pages that did not exist at the saved frame.
+            byte[] zeros = new byte[8192];
+            while (target.hasRemaining()) target.put(zeros, 0, Math.min(zeros.length, target.remaining()));
+            cartLoaded = true;
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not restore WASM memory", exception);
+        }
     }
 
     @Override

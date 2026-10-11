@@ -11,7 +11,6 @@ public final class RoomInfo {
     public UUID host;
     public String hostName;
     public String cartName;
-    public String cartHash;
     public String runtimeHash;
     public int fps;
     public long epoch;

@@ -11,11 +11,8 @@ public class RoomPacket implements IMessage {
 
     public static final UUID NONE = new UUID(0, 0);
     public static final int CHUNK_SIZE = 16 * 1024;
-    /** Leaves room for this envelope and Forge's discriminator under the 32767-byte payload limit. */
-    public static final int CART_PACKET_SIZE = 31 * 1024;
-    public static final int MAX_CART = 64 * 1024;
-    public static final int MAX_STATE = 16 * 1024 * 1024;
-    public static final int PROTOCOL = 1;
+    public static final int MAX_STATE = 32 * 1024 * 1024;
+    public static final int PROTOCOL = 2;
 
     public enum Kind {
         CREATE,
@@ -23,9 +20,6 @@ public class RoomPacket implements IMessage {
         LIST_REQUEST,
         LIST,
         VISIBILITY,
-        UPLOAD,
-        CART_REQUEST,
-        CART_CHUNK,
         JOIN,
         JOIN_WAIT,
         SNAPSHOT_REQUEST,
@@ -109,7 +103,7 @@ public class RoomPacket implements IMessage {
         buffer.readBytes(encoded);
         text = new String(encoded, StandardCharsets.UTF_8);
         int length = buffer.readInt();
-        if (length < 0 || length > payloadLimit() || length != buffer.readableBytes())
+        if (length < 0 || length > CHUNK_SIZE || length != buffer.readableBytes())
             throw new IllegalArgumentException("Invalid room payload");
         data = new byte[length];
         buffer.readBytes(data);
@@ -118,7 +112,7 @@ public class RoomPacket implements IMessage {
     @Override
     public void toBytes(ByteBuf buffer) {
         byte[] encoded = text.getBytes(StandardCharsets.UTF_8);
-        if (encoded.length > 1024 || data.length > payloadLimit() || 82 + encoded.length + data.length >= 32767)
+        if (encoded.length > 1024 || data.length > CHUNK_SIZE || 82 + encoded.length + data.length >= 32767)
             throw new IllegalArgumentException("Room packet too large");
         buffer.writeByte(PROTOCOL);
         buffer.writeByte(kind.ordinal());
@@ -139,7 +133,4 @@ public class RoomPacket implements IMessage {
         buffer.writeBytes(data);
     }
 
-    private int payloadLimit() {
-        return kind == Kind.UPLOAD || kind == Kind.CART_CHUNK ? CART_PACKET_SIZE : CHUNK_SIZE;
-    }
 }
