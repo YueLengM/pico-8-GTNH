@@ -8,8 +8,6 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
 public final class RoomCodec {
 
@@ -114,25 +112,13 @@ public final class RoomCodec {
             for (RollbackTimeline.Input input : snapshot.inputs) input(out, input);
         }
         if (raw.size() > RoomPacket.MAX_STATE) throw new IOException("Snapshot too large");
-        ByteArrayOutputStream compressed = new ByteArrayOutputStream();
-        try (GZIPOutputStream gzip = new GZIPOutputStream(compressed)) {
-            raw.writeTo(gzip);
-        }
-        if (compressed.size() > RoomPacket.MAX_STATE) throw new IOException("Compressed snapshot too large");
-        return compressed.toByteArray();
+        // Memory is already LZ4-compressed; avoid recompressing it on the client thread.
+        return raw.toByteArray();
     }
 
-    public static RollbackTimeline.Snapshot snapshot(byte[] compressed) throws IOException {
-        ByteArrayOutputStream raw = new ByteArrayOutputStream();
-        try (GZIPInputStream gzip = new GZIPInputStream(new ByteArrayInputStream(compressed))) {
-            byte[] buffer = new byte[8192];
-            int count;
-            while ((count = gzip.read(buffer)) != -1) {
-                if (raw.size() + count > RoomPacket.MAX_STATE) throw new IOException("Inflated snapshot too large");
-                raw.write(buffer, 0, count);
-            }
-        }
-        try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(raw.toByteArray()))) {
+    public static RollbackTimeline.Snapshot snapshot(byte[] payload) throws IOException {
+        if (payload.length > RoomPacket.MAX_STATE) throw new IOException("Snapshot too large");
+        try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(payload))) {
             RollbackTimeline.Snapshot snapshot = new RollbackTimeline.Snapshot();
             snapshot.frame = in.readLong();
             snapshot.target = in.readLong();

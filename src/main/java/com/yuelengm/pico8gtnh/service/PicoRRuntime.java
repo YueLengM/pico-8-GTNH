@@ -1,6 +1,5 @@
 package com.yuelengm.pico8gtnh.service;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -8,10 +7,12 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.zip.Deflater;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
+
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.lz4.LZ4SafeDecompressor;
 
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
 
@@ -33,13 +34,11 @@ public final class PicoRRuntime implements AutoCloseable {
     public static final int MAX_MEMORY_BYTES = 128 * 1024 * 1024;
     private static final int WASM_PAGE_BYTES = 65536;
 
-    private static final class SnapshotGzip extends GZIPOutputStream {
-
-        SnapshotGzip(ByteArrayOutputStream output) throws IOException {
-            super(output, 8192);
-            def.setLevel(Deflater.BEST_SPEED);
-        }
-    }
+    private final LZ4Compressor snapshotCompressor = LZ4Factory.safeInstance()
+        .fastCompressor();
+    private final LZ4SafeDecompressor snapshotDecompressor = LZ4Factory.safeInstance()
+        .safeDecompressor();
+    private ByteBuffer snapshotScratch;
 
     private static final int MAX_AUDIO_SAMPLES = 4096;
 
@@ -260,55 +259,61 @@ public final class PicoRRuntime implements AutoCloseable {
         return memory.size(store);
     }
 
-    /** Independent gzip snapshot of the complete linear memory, taken between WASM calls. */
+    /** Independent LZ4 snapshot of complete linear memory, taken between WASM calls. */
     public byte[] saveMemoryState() {
         ByteBuffer source = memoryBuffer();
-        if (source.capacity() > MAX_MEMORY_BYTES) throw new IllegalStateException("WASM memory snapshot too large");
-        try {
-            ByteArrayOutputStream compressed = new ByteArrayOutputStream();
-            try (GZIPOutputStream gzip = new SnapshotGzip(compressed)) {
-                byte[] block = new byte[8192];
-                source.clear();
-                while (source.hasRemaining()) {
-                    int count = Math.min(block.length, source.remaining());
-                    source.get(block, 0, count);
-                    gzip.write(block, 0, count);
-                }
-            }
-            return compressed.toByteArray();
-        } catch (IOException exception) {
-            throw new IllegalStateException("Could not compress WASM memory", exception);
-        }
+        int rawBytes = source.capacity();
+        if (rawBytes > MAX_MEMORY_BYTES) throw new IllegalStateException("WASM memory snapshot too large");
+        int maxCompressedBytes = snapshotCompressor.maxCompressedLength(rawBytes);
+        int capacity = Integer.BYTES + maxCompressedBytes;
+        if (snapshotScratch == null || snapshotScratch.capacity() < capacity)
+            snapshotScratch = ByteBuffer.allocate(capacity);
+        snapshotScratch.putInt(0, rawBytes);
+        int compressedBytes = snapshotCompressor
+            .compress(source, 0, rawBytes, snapshotScratch, Integer.BYTES, maxCompressedBytes);
+        // Only the result is retained; scratch storage is reused by subsequent frames.
+        return Arrays.copyOf(snapshotScratch.array(), Integer.BYTES + compressedBytes);
+    }
+
+    /** Copy between WASM calls; compression of this private copy may run asynchronously. */
+    public byte[] copyMemoryState(int audioRemainder) {
+        ByteBuffer source = memoryBuffer();
+        int length = source.capacity();
+        if (length > MAX_MEMORY_BYTES) throw new IllegalStateException("WASM memory snapshot too large");
+        byte[] state = new byte[8 + length];
+        ByteBuffer.wrap(state)
+            .putInt(audioRemainder)
+            .putInt(-length);
+        source.get(state, 8, length);
+        return state;
     }
 
     public void loadMemoryState(byte[] compressed) {
-        try {
-            ByteArrayOutputStream raw = new ByteArrayOutputStream();
-            try (GZIPInputStream gzip = new GZIPInputStream(new ByteArrayInputStream(compressed))) {
-                byte[] block = new byte[8192];
-                int count;
-                while ((count = gzip.read(block)) != -1) {
-                    if ((long) raw.size() + count > MAX_MEMORY_BYTES)
-                        throw new IOException("Inflated WASM memory exceeds limit");
-                    raw.write(block, 0, count);
-                }
-            }
-            byte[] state = raw.toByteArray();
-            if (state.length == 0 || state.length % WASM_PAGE_BYTES != 0)
-                throw new IOException("Invalid WASM memory size");
-            int pages = state.length / WASM_PAGE_BYTES;
-            if (memory.size(store) < pages) memory.grow(store, pages - memory.size(store));
-            ByteBuffer target = memoryBuffer();
-            if (target.capacity() < state.length) throw new IOException("Could not grow WASM memory");
-            target.clear();
-            target.put(state);
-            // Linear memory cannot shrink; clear pages that did not exist at the saved frame.
-            byte[] zeros = new byte[8192];
-            while (target.hasRemaining()) target.put(zeros, 0, Math.min(zeros.length, target.remaining()));
-            cartLoaded = true;
-        } catch (IOException exception) {
-            throw new IllegalStateException("Could not restore WASM memory", exception);
-        }
+        if (compressed == null || compressed.length <= Integer.BYTES)
+            throw new IllegalArgumentException("Invalid LZ4 snapshot");
+        ByteBuffer source = ByteBuffer.wrap(compressed);
+        int storedLength = source.getInt(0);
+        int rawBytes = storedLength < 0 ? -storedLength : storedLength;
+        if (rawBytes <= 0 || rawBytes > MAX_MEMORY_BYTES || rawBytes % WASM_PAGE_BYTES != 0)
+            throw new IllegalArgumentException("Invalid WASM memory size");
+        if (storedLength < 0 && compressed.length != Integer.BYTES + rawBytes)
+            throw new IllegalArgumentException("Incomplete raw memory snapshot");
+        int pages = rawBytes / WASM_PAGE_BYTES;
+        if (memory.size(store) < pages) memory.grow(store, pages - memory.size(store));
+        ByteBuffer target = memoryBuffer();
+        if (target.capacity() < rawBytes) throw new IllegalStateException("Could not grow WASM memory");
+        int restoredBytes;
+        if (storedLength < 0) {
+            target.put(compressed, Integer.BYTES, rawBytes);
+            restoredBytes = rawBytes;
+        } else restoredBytes = snapshotDecompressor
+            .decompress(source, Integer.BYTES, compressed.length - Integer.BYTES, target, 0, rawBytes);
+        if (restoredBytes != rawBytes) throw new IllegalArgumentException("Incomplete LZ4 memory snapshot");
+        // Linear memory cannot shrink; clear pages that did not exist at the saved frame.
+        target.position(rawBytes);
+        byte[] zeros = new byte[8192];
+        while (target.hasRemaining()) target.put(zeros, 0, Math.min(zeros.length, target.remaining()));
+        cartLoaded = true;
     }
 
     @Override

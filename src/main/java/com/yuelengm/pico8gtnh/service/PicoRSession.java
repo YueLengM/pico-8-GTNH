@@ -150,7 +150,11 @@ public final class PicoRSession {
         if (audible && audioOutput != null) audioOutput.submit(pcm);
     }
 
-    /** Gzip linear memory plus the host-side fractional audio sample counter. */
+    public AsyncSnapshot captureRollbackState() {
+        return AsyncSnapshot.submit(runtime.copyMemoryState(audioSampleRemainder));
+    }
+
+    /** LZ4 linear memory plus the host-side fractional audio sample counter. */
     public byte[] saveRollbackState() {
         byte[] state = runtime.saveMemoryState();
         if (state == null) throw new IllegalStateException("Could not serialize PICO-R state");

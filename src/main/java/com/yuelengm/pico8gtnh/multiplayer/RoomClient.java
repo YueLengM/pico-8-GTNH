@@ -3,6 +3,8 @@ package com.yuelengm.pico8gtnh.multiplayer;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -143,6 +145,11 @@ public final class RoomClient {
             }
 
             @Override
+            public com.yuelengm.pico8gtnh.service.AsyncSnapshot capture() {
+                return active.captureRollbackState();
+            }
+
+            @Override
             public void load(byte[] state) {
                 active.loadRollbackState(state);
             }
@@ -153,6 +160,26 @@ public final class RoomClient {
                 runtime.setButtons(1, p2);
                 runtime.update();
                 active.advanceAudioFrame(!replay);
+            }
+
+            @Override
+            public void reportDiagnostics(String summary) {
+                long gcCount = 0, gcMillis = 0;
+                for (GarbageCollectorMXBean gc : ManagementFactory.getGarbageCollectorMXBeans()) {
+                    gcCount += Math.max(0, gc.getCollectionCount());
+                    gcMillis += Math.max(0, gc.getCollectionTime());
+                }
+                Runtime jvm = Runtime.getRuntime();
+                Pico8GtnhMod.LOG.info(
+                    "PICO-8 snapshot profile: {} wasmBytes={} targetFps={} heapUsedBytes={} heapCommittedBytes={} "
+                        + "gcCountTotal={} gcMsTotal={}",
+                    summary,
+                    (long) runtime.getWasmMemoryPages() * 65536,
+                    fps,
+                    jvm.totalMemory() - jvm.freeMemory(),
+                    jvm.totalMemory(),
+                    gcCount,
+                    gcMillis);
             }
         }, fps);
     }
@@ -497,6 +524,7 @@ public final class RoomClient {
 
     public void resetAfterLoad() {
         if (!isHost()) return;
+        if (timeline != null) timeline.discard();
         timeline = newTimeline(session, room.fps);
         sequence = 0;
         lastP1 = -1;
@@ -531,6 +559,7 @@ public final class RoomClient {
         roomId = null;
         serverPlayerId = null;
         session = null;
+        if (timeline != null) timeline.discard();
         timeline = null;
         ready = false;
         creating = false;
