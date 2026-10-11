@@ -179,9 +179,7 @@ public final class PicoRSession {
         if (bytes.length <= Integer.BYTES) throw new IllegalArgumentException("Invalid rollback snapshot");
         ByteBuffer buffer = ByteBuffer.wrap(bytes);
         int remainder = buffer.getInt();
-        byte[] state = new byte[buffer.remaining()];
-        buffer.get(state);
-        runtime.loadMemoryState(state);
+        runtime.loadMemoryState(bytes, Integer.BYTES, bytes.length - Integer.BYTES);
         if (remainder < 0 || remainder >= runtime.getFramesPerSecond())
             throw new IllegalArgumentException("Invalid audio counter");
         audioSampleRemainder = remainder;

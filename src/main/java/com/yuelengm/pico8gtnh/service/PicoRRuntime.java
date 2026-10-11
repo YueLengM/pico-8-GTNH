@@ -33,6 +33,7 @@ public final class PicoRRuntime implements AutoCloseable {
     public static final int AUDIO_SAMPLE_RATE = 22050;
     public static final int MAX_MEMORY_BYTES = 128 * 1024 * 1024;
     private static final int WASM_PAGE_BYTES = 65536;
+    private static final byte[] ZERO_BYTES = new byte[8192];
 
     private final LZ4Compressor snapshotCompressor = LZ4Factory.safeInstance()
         .fastCompressor();
@@ -289,14 +290,19 @@ public final class PicoRRuntime implements AutoCloseable {
     }
 
     public void loadMemoryState(byte[] compressed) {
-        if (compressed == null || compressed.length <= Integer.BYTES)
+        loadMemoryState(compressed, 0, compressed == null ? 0 : compressed.length);
+    }
+
+    /** Restore directly from an envelope without copying its memory payload. */
+    public void loadMemoryState(byte[] compressed, int offset, int length) {
+        if (compressed == null || offset < 0 || length <= Integer.BYTES || (long) offset + length > compressed.length)
             throw new IllegalArgumentException("Invalid LZ4 snapshot");
         ByteBuffer source = ByteBuffer.wrap(compressed);
-        int storedLength = source.getInt(0);
+        int storedLength = source.getInt(offset);
         int rawBytes = storedLength < 0 ? -storedLength : storedLength;
         if (rawBytes <= 0 || rawBytes > MAX_MEMORY_BYTES || rawBytes % WASM_PAGE_BYTES != 0)
             throw new IllegalArgumentException("Invalid WASM memory size");
-        if (storedLength < 0 && compressed.length != Integer.BYTES + rawBytes)
+        if (storedLength < 0 && length != Integer.BYTES + rawBytes)
             throw new IllegalArgumentException("Incomplete raw memory snapshot");
         int pages = rawBytes / WASM_PAGE_BYTES;
         if (memory.size(store) < pages) memory.grow(store, pages - memory.size(store));
@@ -304,15 +310,14 @@ public final class PicoRRuntime implements AutoCloseable {
         if (target.capacity() < rawBytes) throw new IllegalStateException("Could not grow WASM memory");
         int restoredBytes;
         if (storedLength < 0) {
-            target.put(compressed, Integer.BYTES, rawBytes);
+            target.put(compressed, offset + Integer.BYTES, rawBytes);
             restoredBytes = rawBytes;
         } else restoredBytes = snapshotDecompressor
-            .decompress(source, Integer.BYTES, compressed.length - Integer.BYTES, target, 0, rawBytes);
+            .decompress(source, offset + Integer.BYTES, length - Integer.BYTES, target, 0, rawBytes);
         if (restoredBytes != rawBytes) throw new IllegalArgumentException("Incomplete LZ4 memory snapshot");
         // Linear memory cannot shrink; clear pages that did not exist at the saved frame.
         target.position(rawBytes);
-        byte[] zeros = new byte[8192];
-        while (target.hasRemaining()) target.put(zeros, 0, Math.min(zeros.length, target.remaining()));
+        while (target.hasRemaining()) target.put(ZERO_BYTES, 0, Math.min(ZERO_BYTES.length, target.remaining()));
         cartLoaded = true;
     }
 

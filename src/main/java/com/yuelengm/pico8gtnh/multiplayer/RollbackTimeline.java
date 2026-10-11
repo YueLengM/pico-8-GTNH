@@ -1,7 +1,6 @@
 package com.yuelengm.pico8gtnh.multiplayer;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -10,6 +9,7 @@ import java.util.UUID;
 import com.yuelengm.pico8gtnh.service.AsyncSnapshot;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectRBTreeMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
 
 /** S[f] is the state before update f; input f produces S[f+1]. No renderer or network dependency. */
 public final class RollbackTimeline {
@@ -58,7 +58,7 @@ public final class RollbackTimeline {
         public long target;
         public byte[] state;
         private AsyncSnapshot localState;
-        public final Map<UUID, Input> held = new LinkedHashMap<>();
+        public final Map<UUID, Input> held = new Object2ObjectLinkedOpenHashMap<>(4);
         public final List<Input> inputs = new ArrayList<>();
     }
 
@@ -67,7 +67,7 @@ public final class RollbackTimeline {
     private final Long2ObjectRBTreeMap<Snapshot> history = new Long2ObjectRBTreeMap<>();
     private final Long2ObjectRBTreeMap<Map<UUID, Input>> events = new Long2ObjectRBTreeMap<>();
     private final Long2ObjectRBTreeMap<Map<UUID, Input>> boundaries = new Long2ObjectRBTreeMap<>();
-    private final Map<UUID, Input> held = new LinkedHashMap<>();
+    private final Map<UUID, Input> held = new Object2ObjectLinkedOpenHashMap<>(4);
     private long frame;
     private long reportStarted = System.nanoTime();
     private long saveCount, saveNanos, maxSaveNanos, savedBytes, maxSavedBytes;
@@ -87,9 +87,10 @@ public final class RollbackTimeline {
 
     public boolean record(Input input) {
         if (input.frame < history.firstLongKey() || input.frame > frame + historyFrames) return false;
-        if (input.boundary) boundaries.computeIfAbsent(input.frame, ignored -> new LinkedHashMap<>())
+        if (input.boundary) boundaries.computeIfAbsent(input.frame, ignored -> new Object2ObjectLinkedOpenHashMap<>(4))
             .put(input.player, input);
-        Map<UUID, Input> changes = events.computeIfAbsent(input.frame, ignored -> new LinkedHashMap<>());
+        Map<UUID, Input> changes = events
+            .computeIfAbsent(input.frame, ignored -> new Object2ObjectLinkedOpenHashMap<>(4));
         Input previous = changes.get(input.player);
         if (previous != null && previous.sequence >= input.sequence) return true;
         changes.put(input.player, input);
