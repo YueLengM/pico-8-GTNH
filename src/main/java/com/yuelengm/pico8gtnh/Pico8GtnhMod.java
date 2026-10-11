@@ -18,7 +18,12 @@ import cpw.mods.fml.common.event.FMLServerStoppedEvent;
 import cpw.mods.fml.common.network.NetworkCheckHandler;
 import cpw.mods.fml.relauncher.Side;
 
-@Mod(modid = Pico8GtnhMod.MODID, version = Tags.VERSION, name = "PICO-8", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(
+    modid = Pico8GtnhMod.MODID,
+    version = Tags.VERSION,
+    name = "PICO-8",
+    acceptedMinecraftVersions = "[1.7.10]",
+    dependencies = "required:modularui2;required:gtnhlib")
 public class Pico8GtnhMod {
 
     public static final String MODID = "pico8";
