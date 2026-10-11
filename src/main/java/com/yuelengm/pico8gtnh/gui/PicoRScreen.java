@@ -275,7 +275,7 @@ public final class PicoRScreen extends GuiScreen {
 
     private void drawInterface() {
         scaleHudLeft = pixelToGuiX(SCALE_HUD_SCREEN_GAP);
-        scaleHudTop = (height - scaleHudHeight()) / 2;
+        scaleHudTop = Math.max(0, Math.min((height - scaleHudHeight()) / 2 + 24, height - scaleHudHeight() - 8));
         drawScreenText();
         drawControlPanel();
         drawScaleHud();
@@ -291,19 +291,13 @@ public final class PicoRScreen extends GuiScreen {
         RoomClient client = RoomClient.INSTANCE;
         RoomInfo room = client.room();
         if (room == null) return;
-        drawRect(4, 4, 184, 38 + 18 * Math.min(memberRows(), room.members.size()), 0xC0202020);
-        String roomTitle = room.published ? "gui.pico8.room.public" : "gui.pico8.room.private";
+        drawRect(4, 4, 100, 38 + 18 * Math.min(memberRows(), room.members.size()), 0xC0202020);
+        String roomTitle = "gui.pico8.room.title";
         drawString(fontRendererObj, StatCollector.translateToLocal(roomTitle), 8, 8, 0xFFFFFF);
-        if (client.isHost()) drawString(
-            fontRendererObj,
-            StatCollector.translateToLocal(room.published ? "gui.pico8.room.make_private" : "gui.pico8.room.publish"),
-            8,
-            24,
-            0xFFD34E);
         drawString(
             fontRendererObj,
             StatCollector.translateToLocal(client.isHost() ? "gui.pico8.room.dissolve" : "gui.pico8.room.leave"),
-            112,
+            8,
             24,
             0xFFAAAA);
         firstMember = Math.max(0, Math.min(firstMember, Math.max(0, room.members.size() - memberRows())));
@@ -313,7 +307,7 @@ public final class PicoRScreen extends GuiScreen {
             drawRoomIcon(member.controller ? DPAD_ICON : DISABLED_CONTROLLER_ICON, 8, y);
             drawString(
                 fontRendererObj,
-                fontRendererObj.trimStringToWidth(member.name, 150),
+                fontRendererObj.trimStringToWidth(member.name, 70),
                 26,
                 y + 2,
                 member.id.equals(room.host) ? 0xFFD34E : 0xFFFFFF);
@@ -420,11 +414,7 @@ public final class PicoRScreen extends GuiScreen {
         RoomInfo room = client.room();
         if (mouseButton == 0 && room != null && !isMouseOverHideHotspot(mouseX, mouseY)) {
             if (mouseY >= 22 && mouseY < 36) {
-                if (mouseX >= 8 && mouseX < 108 && client.isHost()) {
-                    client.publish();
-                    return;
-                }
-                if (mouseX >= 112 && mouseX < 184) {
+                if (mouseX >= 8 && mouseX < 80) {
                     client.leave(true);
                     mc.displayGuiScreen(null);
                     return;
@@ -598,6 +588,11 @@ public final class PicoRScreen extends GuiScreen {
         }
         if (session != null) {
             session.pause();
+            if (joiningRoom) {
+                PicoRSession.discard(session);
+                session = null;
+                runtime = null;
+            }
         }
         if (texture != null) {
             mc.getTextureManager()
@@ -616,7 +611,7 @@ public final class PicoRScreen extends GuiScreen {
     public void handleMouseInput() {
         super.handleMouseInput();
         int wheel = org.lwjgl.input.Mouse.getEventDWheel();
-        if (wheel != 0 && org.lwjgl.input.Mouse.getEventX() * width / mc.displayWidth < 184)
+        if (wheel != 0 && org.lwjgl.input.Mouse.getEventX() * width / mc.displayWidth < 100)
             firstMember += wheel < 0 ? 1 : -1;
     }
 

@@ -12,14 +12,13 @@ public class RoomPacket implements IMessage {
     public static final UUID NONE = new UUID(0, 0);
     public static final int CHUNK_SIZE = 16 * 1024;
     public static final int MAX_STATE = 32 * 1024 * 1024;
-    public static final int PROTOCOL = 3;
+    public static final int PROTOCOL = 4;
 
     public enum Kind {
         CREATE,
         CREATED,
         LIST_REQUEST,
         LIST,
-        VISIBILITY,
         JOIN,
         JOIN_WAIT,
         SNAPSHOT_REQUEST,

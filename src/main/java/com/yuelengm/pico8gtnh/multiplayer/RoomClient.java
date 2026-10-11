@@ -34,7 +34,7 @@ public final class RoomClient {
     private static final long SECOND = 1_000_000_000L;
     private final ArrayBlockingQueue<Runnable> inbound = new ArrayBlockingQueue<>(4096);
     private final Deque<ChunkTransfer.Sender> outgoing = new ArrayDeque<>();
-    private final List<RoomInfo> publicRooms = new ArrayList<>();
+    private final List<RoomInfo> rooms = new ArrayList<>();
     private final List<RoomPacket> buffered = new ArrayList<>();
     private RoomInfo room;
     private RoomInfo joining;
@@ -69,8 +69,8 @@ public final class RoomClient {
         return room;
     }
 
-    public List<RoomInfo> publicRooms() {
-        return new ArrayList<>(publicRooms);
+    public List<RoomInfo> rooms() {
+        return new ArrayList<>(rooms);
     }
 
     public String status() {
@@ -215,14 +215,6 @@ public final class RoomClient {
         RoomNetwork.toServer(create);
     }
 
-    public void publish() {
-        if (!isHost() || session == null) return;
-        RoomPacket packet = new RoomPacket(RoomPacket.Kind.VISIBILITY, roomId);
-        packet.epoch = room.epoch;
-        packet.flag = !room.published;
-        RoomNetwork.toServer(packet);
-    }
-
     public void toggleController(UUID player) {
         if (!isHost() || player.equals(self())) return;
         RoomInfo.Member member = room.member(player);
@@ -242,6 +234,7 @@ public final class RoomClient {
                 notifyKey("gui.pico8.room.incompatible");
                 return;
             }
+            PicoRSession.closeCurrent();
             joining = selected;
             requestJoin();
         } catch (IOException exception) {
@@ -262,8 +255,8 @@ public final class RoomClient {
     private void receive(RoomPacket packet) throws IOException {
         if (!available()) return;
         if (packet.kind == RoomPacket.Kind.LIST) {
-            if (packet.flag) publicRooms.clear();
-            else if (packet.data.length > 0) publicRooms.add(RoomCodec.room(packet.data));
+            if (packet.flag) rooms.clear();
+            else if (packet.data.length > 0) rooms.add(RoomCodec.room(packet.data));
             return;
         }
         if (packet.kind == RoomPacket.Kind.ERROR) {
@@ -558,9 +551,10 @@ public final class RoomClient {
         joining = null;
         roomId = null;
         serverPlayerId = null;
-        session = null;
         if (timeline != null) timeline.discard();
         timeline = null;
+        if (session != null && session.isRoomGuest()) PicoRSession.discard(session);
+        session = null;
         ready = false;
         creating = false;
         outgoing.clear();
@@ -590,7 +584,7 @@ public final class RoomClient {
             joining = null;
             roomId = null;
             leave(false);
-            publicRooms.clear();
+            rooms.clear();
             return;
         }
         if (overflow) {

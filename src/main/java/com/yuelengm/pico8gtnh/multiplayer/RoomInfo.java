@@ -14,7 +14,6 @@ public final class RoomInfo {
     public String runtimeHash;
     public int fps;
     public long epoch;
-    public boolean published;
     public final List<Member> members = new ArrayList<>();
 
     public static final class Member {

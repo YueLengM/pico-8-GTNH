@@ -130,7 +130,7 @@ public final class RoomServer {
             RoomPacket start = new RoomPacket(RoomPacket.Kind.LIST);
             start.flag = true;
             send(id, start);
-            for (ServerRoom room : rooms.values()) if (room.info.published) {
+            for (ServerRoom room : rooms.values()) {
                 RoomPacket entry = new RoomPacket(RoomPacket.Kind.LIST, room.info.id);
                 entry.data = RoomCodec.room(room.info);
                 send(id, entry);
@@ -155,7 +155,6 @@ public final class RoomServer {
             info.host = id;
             info.hostName = player.getCommandSenderName();
             info.epoch = 0;
-            info.published = false;
             info.members.clear();
             info.members.add(new RoomInfo.Member(id, info.hostName, true));
             ServerRoom room = new ServerRoom(info);
@@ -184,11 +183,6 @@ public final class RoomServer {
         Progress progress = room.progress.get(id);
         if (progress == null || packet.epoch != room.info.epoch && packet.kind != RoomPacket.Kind.RESET) return;
         switch (packet.kind) {
-            case VISIBILITY:
-                if (!host) return;
-                room.info.published = packet.flag;
-                members(room);
-                break;
             case INPUT:
                 RoomInfo.Member member = room.info.member(id);
                 if (!progress.ready || member == null
@@ -315,8 +309,7 @@ public final class RoomServer {
         UUID id = player.getUniqueID();
         ServerRoom room = rooms.get(packet.room);
         long now = System.nanoTime();
-        if (room == null || !room.info.published
-            || memberships.containsKey(id)
+        if (room == null || memberships.containsKey(id)
             || room.info.members.size() >= MAX_MEMBERS
             || !packet.text.equals(room.info.runtimeHash)) {
             error(player, packet.room, "gui.pico8.room.unavailable");

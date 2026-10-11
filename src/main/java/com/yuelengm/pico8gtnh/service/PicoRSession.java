@@ -22,6 +22,7 @@ public final class PicoRSession {
     private final PicoRAudioOutput audioOutput;
     private int audioSampleRemainder;
     private byte[] savedState;
+    private boolean closed;
 
     private PicoRSession(File cartFile, PicoRRuntime runtime, PicoRAudioOutput audioOutput) {
         this.cartFile = cartFile;
@@ -93,6 +94,15 @@ public final class PicoRSession {
         return runtime;
     }
 
+    public boolean isRoomGuest() {
+        return cartFile == null;
+    }
+
+    /** Only discard the expected session, never a subsequently loaded cartridge. */
+    public static synchronized void discard(PicoRSession expected) {
+        if (current == expected) closeCurrent();
+    }
+
     /** Saves a snapshot for the current cartridge session. */
     public boolean saveState() {
         byte[] state = saveRollbackState();
@@ -123,6 +133,7 @@ public final class PicoRSession {
     }
 
     public void pause() {
+        if (closed) return;
         if (audioOutput != null) {
             audioOutput.pause();
         }
@@ -186,11 +197,17 @@ public final class PicoRSession {
         }
     }
 
-    private static void closeCurrent() {
+    public static synchronized void closeCurrent() {
         if (current != null) {
-            current.audioOutputClose();
-            current.runtime.close();
+            PicoRSession previous = current;
             current = null;
+            previous.closed = true;
+            previous.savedState = null;
+            try {
+                previous.audioOutputClose();
+            } finally {
+                previous.runtime.close();
+            }
         }
     }
 

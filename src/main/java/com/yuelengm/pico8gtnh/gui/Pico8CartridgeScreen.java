@@ -96,6 +96,7 @@ public final class Pico8CartridgeScreen {
                                         () -> {
                                             if (RoomClient.INSTANCE.available()) ClientGUI.open(new Pico8RoomScreen());
                                         })
+                                    .padding(2)
                                     .width(20)
                                     .fullHeight())
                             .child(

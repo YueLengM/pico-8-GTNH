@@ -44,7 +44,6 @@ public final class RoomCodec {
             out.writeUTF(room.runtimeHash);
             out.writeInt(room.fps);
             out.writeLong(room.epoch);
-            out.writeBoolean(room.published);
             out.writeInt(room.members.size());
             for (RoomInfo.Member member : room.members) {
                 uuid(out, member.id);
@@ -67,7 +66,6 @@ public final class RoomCodec {
             room.runtimeHash = in.readUTF();
             room.fps = in.readInt();
             room.epoch = in.readLong();
-            room.published = in.readBoolean();
             int count = in.readInt();
             if (count < 0 || count > 16 || (room.fps != 30 && room.fps != 60))
                 throw new IOException("Invalid room metadata");

@@ -47,7 +47,7 @@ public final class Pico8RoomScreen extends GuiScreen {
     public void drawScreen(int mouseX, int mouseY, float ticks) {
         drawDefaultBackground();
         drawCenteredString(fontRendererObj, text("gui.pico8.room.list"), width / 2, 12, 0xFFFFFF);
-        List<RoomInfo> rooms = RoomClient.INSTANCE.publicRooms();
+        List<RoomInfo> rooms = RoomClient.INSTANCE.rooms();
         first = Math.max(0, Math.min(first, Math.max(0, rooms.size() - rows())));
         int left = Math.max(8, width / 2 - 180), right = Math.min(width - 8, width / 2 + 180);
         if (rooms.isEmpty()) drawCenteredString(fontRendererObj, text("gui.pico8.room.empty"), width / 2, 44, 0xAAAAAA);
@@ -86,7 +86,7 @@ public final class Pico8RoomScreen extends GuiScreen {
         if (button != 0 || RoomClient.INSTANCE.busy()) return;
         int left = Math.max(8, width / 2 - 180), right = Math.min(width - 8, width / 2 + 180);
         if (x < left || x >= right || y < 32 || y >= 32 + rows() * 32) return;
-        List<RoomInfo> rooms = RoomClient.INSTANCE.publicRooms();
+        List<RoomInfo> rooms = RoomClient.INSTANCE.rooms();
         int index = first + (y - 32) / 32;
         if (index < rooms.size()) RoomClient.INSTANCE.join(rooms.get(index));
     }

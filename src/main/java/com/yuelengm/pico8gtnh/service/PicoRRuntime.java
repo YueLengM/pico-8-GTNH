@@ -318,6 +318,7 @@ public final class PicoRRuntime implements AutoCloseable {
 
     @Override
     public void close() {
+        snapshotScratch = null;
         generateAudio.dispose();
         getPixelBuffer.dispose();
         setButtons.dispose();
