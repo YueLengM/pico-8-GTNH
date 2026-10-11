@@ -9,7 +9,7 @@
 ### 下载 Downloads
 | GTNH            | Download                                                                                                                                   |
 |-----------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| 2.9.0 beta1-RC2 | [![0.3.0](https://img.shields.io/badge/release-v0.3.0_2.9.0-orange)](https://github.com/YueLengM/pico-8-GTNH/releases/tag/0.3.0)           |
+| 2.9.0 beta1-RC2 | [![0.3.0](https://img.shields.io/badge/release-v0.4.0_2.9.0-orange)](https://github.com/YueLengM/pico-8-GTNH/releases/tag/0.4.0)           |
 | 2.8.4           | [![0.3.0](https://img.shields.io/badge/release-v0.3.0_2.8.4-orange)](https://github.com/YueLengM/pico-8-GTNH/releases/tag/0.3.0-GTNH2.8.4) |
 
 > [!NOTE]
