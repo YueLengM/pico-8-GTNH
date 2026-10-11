@@ -62,7 +62,8 @@ public final class RoomClient {
     private RoomClient() {}
 
     public boolean available() {
-        return !Pico8GtnhMod.isClientOnlyMode() && Minecraft.getMinecraft().thePlayer != null;
+        Minecraft minecraft = Minecraft.getMinecraft();
+        return !minecraft.isSingleplayer() && !Pico8GtnhMod.isClientOnlyMode() && minecraft.thePlayer != null;
     }
 
     public RoomInfo room() {

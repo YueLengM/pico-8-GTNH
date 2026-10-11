@@ -66,44 +66,44 @@ public final class Pico8CartridgeScreen {
                                 .expanded()
                                 .background(new Rectangle().color(0xFF202020))
                                 .children(this.carts, CartridgeRow::new))
-                    .child(
-                        Flow.row()
-                            .childPadding(2)
-                            .fullWidth()
-                            .height(20)
-                            .marginTop(2)
-                            .child(
-                                new TextWidget<>(IKey.lang("gui.pico8.carts.title")).textAlign(Alignment.CENTER)
-                                    .style(EnumChatFormatting.BOLD)
-                                    .widthRel(0.15f))
-                            .child(
-                                createLoadButton().expanded()
-                                    .fullHeight())
-                            .child(
-                                CommonWidgets.iconButton("icons/refresh", Pico8CartridgeScreen::open)
-                                    .padding(2)
-                                    .width(20)
-                                    .fullHeight())
-                            .child(
-                                CommonWidgets.iconButton("icons/folder", this::openCartsFolder)
-                                    .padding(2)
-                                    .width(20)
-                                    .fullHeight())
-                            .child(
-                                CommonWidgets
-                                    .iconButton(
-                                        "icons/party",
-                                        () -> {
-                                            if (RoomClient.INSTANCE.available()) ClientGUI.open(new Pico8RoomScreen());
-                                        })
-                                    .padding(2)
-                                    .width(20)
-                                    .fullHeight())
-                            .child(
-                                CommonWidgets.iconButton("icons/add", Pico8StoreScreen::open)
-                                    .padding(2)
-                                    .width(20)
-                                    .fullHeight())));
+                    .child(createFooter()));
+    }
+
+    private Flow createFooter() {
+        Flow footer = Flow.row()
+            .childPadding(2)
+            .fullWidth()
+            .height(20)
+            .marginTop(2)
+            .child(
+                new TextWidget<>(IKey.lang("gui.pico8.carts.title")).textAlign(Alignment.CENTER)
+                    .style(EnumChatFormatting.BOLD)
+                    .widthRel(0.15f))
+            .child(
+                createLoadButton().expanded()
+                    .fullHeight())
+            .child(
+                CommonWidgets.iconButton("icons/refresh", Pico8CartridgeScreen::open)
+                    .padding(2)
+                    .width(20)
+                    .fullHeight())
+            .child(
+                CommonWidgets.iconButton("icons/folder", this::openCartsFolder)
+                    .padding(2)
+                    .width(20)
+                    .fullHeight());
+        if (RoomClient.INSTANCE.available()) {
+            footer.child(
+                CommonWidgets.iconButton("icons/party", () -> ClientGUI.open(new Pico8RoomScreen()))
+                    .padding(2)
+                    .width(20)
+                    .fullHeight());
+        }
+        return footer.child(
+            CommonWidgets.iconButton("icons/add", Pico8StoreScreen::open)
+                .padding(2)
+                .width(20)
+                .fullHeight());
     }
 
     private final class CartridgeRow extends Flow implements Interactable {

@@ -289,6 +289,7 @@ public final class PicoRScreen extends GuiScreen {
 
     private void drawRoomInformation() {
         RoomClient client = RoomClient.INSTANCE;
+        if (!client.available()) return;
         RoomInfo room = client.room();
         if (room == null) return;
         drawRect(4, 4, 100, 38 + 18 * Math.min(memberRows(), room.members.size()), 0xC0202020);
