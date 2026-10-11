@@ -2,6 +2,7 @@ package com.yuelengm.pico8gtnh.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 
 import javax.sound.sampled.LineUnavailableException;
@@ -115,9 +116,11 @@ public final class PicoRSession {
     }
 
     public void queueAudioFrame() {
-        if (audioOutput == null) {
-            return;
-        }
+        advanceAudioFrame(true);
+    }
+
+    /** Advances audio state even when playback is unavailable or a frame is being replayed. */
+    public void advanceAudioFrame(boolean audible) {
 
         int framesPerSecond = runtime.getFramesPerSecond();
         int sampleCount = PicoRRuntime.AUDIO_SAMPLE_RATE / framesPerSecond;
@@ -130,7 +133,34 @@ public final class PicoRSession {
         Minecraft minecraft = Minecraft.getMinecraft();
         float masterVolume = minecraft.gameSettings.getSoundLevel(SoundCategory.MASTER);
         float recordsVolume = minecraft.gameSettings.getSoundLevel(SoundCategory.RECORDS);
-        audioOutput.submit(runtime.generateAudio(sampleCount, masterVolume * recordsVolume));
+        byte[] pcm = runtime.generateAudio(sampleCount, masterVolume * recordsVolume);
+        if (audible && audioOutput != null) audioOutput.submit(pcm);
+    }
+
+    /** SL serialization plus the host-side fractional audio sample counter. */
+    public byte[] saveRollbackState() {
+        byte[] state = runtime.saveState();
+        if (state == null) throw new IllegalStateException("Could not serialize PICO-R state");
+        return ByteBuffer.allocate(Integer.BYTES + state.length)
+            .putInt(audioSampleRemainder)
+            .put(state)
+            .array();
+    }
+
+    public void loadRollbackState(byte[] bytes) {
+        if (bytes.length <= Integer.BYTES) throw new IllegalArgumentException("Invalid rollback snapshot");
+        ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        int remainder = buffer.getInt();
+        if (remainder < 0 || remainder >= runtime.getFramesPerSecond())
+            throw new IllegalArgumentException("Invalid audio counter");
+        byte[] state = new byte[buffer.remaining()];
+        buffer.get(state);
+        runtime.loadState(state);
+        audioSampleRemainder = remainder;
+        if (audioOutput != null) {
+            audioOutput.pause();
+            audioOutput.resume();
+        }
     }
 
     private void resume() {

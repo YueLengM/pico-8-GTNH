@@ -28,6 +28,7 @@ import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.TextWidget;
 import com.cleanroommc.modularui.widgets.layout.Flow;
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
+import com.yuelengm.pico8gtnh.multiplayer.RoomClient;
 import com.yuelengm.pico8gtnh.service.CartService;
 import com.yuelengm.pico8gtnh.service.Cartridge;
 import com.yuelengm.pico8gtnh.util.Desktop;
@@ -86,6 +87,15 @@ public final class Pico8CartridgeScreen {
                             .child(
                                 CommonWidgets.iconButton("icons/folder", this::openCartsFolder)
                                     .padding(2)
+                                    .width(20)
+                                    .fullHeight())
+                            .child(
+                                CommonWidgets
+                                    .iconButton(
+                                        "icons/party",
+                                        () -> {
+                                            if (RoomClient.INSTANCE.available()) ClientGUI.open(new Pico8RoomScreen());
+                                        })
                                     .width(20)
                                     .fullHeight())
                             .child(

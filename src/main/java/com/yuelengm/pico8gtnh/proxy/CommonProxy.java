@@ -3,6 +3,8 @@ package com.yuelengm.pico8gtnh.proxy;
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
 import com.yuelengm.pico8gtnh.Tags;
 import com.yuelengm.pico8gtnh.block.ModBlocks;
+import com.yuelengm.pico8gtnh.multiplayer.RoomNetwork;
+import com.yuelengm.pico8gtnh.multiplayer.RoomPacket;
 import com.yuelengm.pico8gtnh.recipe.RecipeLoader;
 
 import cpw.mods.fml.common.event.FMLInitializationEvent;
@@ -13,6 +15,7 @@ import cpw.mods.fml.common.event.FMLServerStartingEvent;
 public class CommonProxy {
 
     public void preInit(FMLPreInitializationEvent event) {
+        RoomNetwork.init();
         ModBlocks.registerBlocks();
         Pico8GtnhMod.LOG.info("Pico-8 GTNH loaded at version " + Tags.VERSION);
     }
@@ -26,4 +29,6 @@ public class CommonProxy {
     public void serverStarting(FMLServerStartingEvent event) {}
 
     public void openPico8Screen(boolean chooseCartridge) {}
+
+    public void receiveRoomPacket(RoomPacket packet) {}
 }

@@ -15,6 +15,8 @@ import org.lwjgl.opengl.GL11;
 import com.gtnewhorizon.gtnhlib.config.ConfigurationManager;
 import com.yuelengm.pico8gtnh.Pico8GtnhMod;
 import com.yuelengm.pico8gtnh.config.Pico8Config;
+import com.yuelengm.pico8gtnh.multiplayer.RoomClient;
+import com.yuelengm.pico8gtnh.multiplayer.RoomInfo;
 import com.yuelengm.pico8gtnh.service.PicoRRuntime;
 import com.yuelengm.pico8gtnh.service.PicoRSession;
 
@@ -47,6 +49,9 @@ public final class PicoRScreen extends GuiScreen {
     private static final ResourceLocation DPAD_ICON = new ResourceLocation(
         Pico8GtnhMod.MODID,
         "textures/icons/controller_dpad.png");
+    private static final ResourceLocation DISABLED_CONTROLLER_ICON = new ResourceLocation(
+        Pico8GtnhMod.MODID,
+        "textures/icons/controller_disable.png");
     private static final ResourceLocation O_ICON = new ResourceLocation(
         Pico8GtnhMod.MODID,
         "textures/icons/controller_o.png");
@@ -73,6 +78,15 @@ public final class PicoRScreen extends GuiScreen {
     private int scaleHudTop;
     private int hideHotspotLeft;
     private int hideHotspotTop;
+    private boolean joiningRoom;
+    private boolean roomAttached;
+    private int firstMember;
+
+    public static PicoRScreen joinRoom(File cartFile) {
+        PicoRScreen screen = new PicoRScreen(cartFile, true);
+        screen.joiningRoom = true;
+        return screen;
+    }
 
     public static PicoRScreen resume(File cartFile) {
         return new PicoRScreen(cartFile, false);
@@ -107,6 +121,10 @@ public final class PicoRScreen extends GuiScreen {
                 session = PicoRSession.resume(cartFile);
             }
             runtime = session.getRuntime();
+            if (!roomAttached && RoomClient.INSTANCE.available()) {
+                RoomClient.INSTANCE.attach(session, cartFile, joiningRoom);
+                roomAttached = true;
+            }
 
             texture = new DynamicTexture(PicoRRuntime.SCREEN_WIDTH, PicoRRuntime.SCREEN_HEIGHT);
             texturePixels = texture.getTextureData();
@@ -115,6 +133,7 @@ public final class PicoRScreen extends GuiScreen {
             copyFrameToTexture();
             lastFrameNanos = System.nanoTime();
         } catch (IOException | RuntimeException | LinkageError exception) {
+            if (RoomClient.INSTANCE.active()) RoomClient.INSTANCE.leave(false);
             if (session != null) {
                 session.pause();
             }
@@ -187,10 +206,32 @@ public final class PicoRScreen extends GuiScreen {
     }
 
     private void updateGame() {
+        try {
+            runGameFrames();
+        } catch (RuntimeException exception) {
+            Pico8GtnhMod.LOG.error("Could not advance PICO-8 cartridge {}", cartFile, exception);
+            RoomClient.INSTANCE.leave(false);
+            session.pause();
+            error = "gui.pico8.runtime.start_error";
+        }
+    }
+
+    private void runGameFrames() {
         long now = System.nanoTime();
         long frameInterval = NANOS_PER_SECOND / runtime.getFramesPerSecond();
         long overdueFrames = (now - lastFrameNanos) / frameInterval;
         if (overdueFrames <= 0) {
+            if (RoomClient.INSTANCE.active()) copyFrameToTexture();
+            return;
+        }
+
+        if (RoomClient.INSTANCE.active()) {
+            int count = RoomClient.INSTANCE.framesToRun((int) Math.min(overdueFrames, 8));
+            for (int frame = 0; frame < count; frame++)
+                RoomClient.INSTANCE.advance(readButtonBits(0), readButtonBits(1));
+            copyFrameToTexture();
+            if (!RoomClient.INSTANCE.ready() || !RoomClient.INSTANCE.isHost()) lastFrameNanos = now;
+            else lastFrameNanos += frameInterval * count;
             return;
         }
 
@@ -232,6 +273,65 @@ public final class PicoRScreen extends GuiScreen {
         drawControlPanel();
         drawScaleHud();
         drawHideHotspot();
+        drawRoomInformation();
+    }
+
+    private int memberRows() {
+        return Math.max(1, (height - 72) / 18);
+    }
+
+    private void drawRoomInformation() {
+        RoomClient client = RoomClient.INSTANCE;
+        RoomInfo room = client.room();
+        if (room == null) return;
+        drawRect(4, 4, 184, 38 + 18 * Math.min(memberRows(), room.members.size()), 0xC0202020);
+        String roomTitle = client.status()
+            .equals("gui.pico8.room.uploading") ? client.status()
+                : room.published ? "gui.pico8.room.public" : "gui.pico8.room.private";
+        drawString(fontRendererObj, StatCollector.translateToLocal(roomTitle), 8, 8, 0xFFFFFF);
+        if (client.isHost()) drawString(
+            fontRendererObj,
+            StatCollector.translateToLocal(room.published ? "gui.pico8.room.make_private" : "gui.pico8.room.publish"),
+            8,
+            24,
+            0xFFD34E);
+        drawString(
+            fontRendererObj,
+            StatCollector.translateToLocal(client.isHost() ? "gui.pico8.room.dissolve" : "gui.pico8.room.leave"),
+            112,
+            24,
+            0xFFAAAA);
+        firstMember = Math.max(0, Math.min(firstMember, Math.max(0, room.members.size() - memberRows())));
+        for (int i = firstMember; i < Math.min(room.members.size(), firstMember + memberRows()); i++) {
+            RoomInfo.Member member = room.members.get(i);
+            int y = 40 + (i - firstMember) * 18;
+            drawRoomIcon(member.controller ? DPAD_ICON : DISABLED_CONTROLLER_ICON, 8, y);
+            drawString(
+                fontRendererObj,
+                fontRendererObj.trimStringToWidth(member.name, 150),
+                26,
+                y + 2,
+                member.id.equals(room.host) ? 0xFFD34E : 0xFFFFFF);
+        }
+        if (!client.ready()) drawCenteredString(
+            fontRendererObj,
+            StatCollector.translateToLocal("gui.pico8.room.syncing"),
+            width / 2,
+            height / 2,
+            0xFFD34E);
+    }
+
+    private void drawRoomIcon(ResourceLocation icon, int x, int y) {
+        mc.getTextureManager()
+            .bindTexture(icon);
+        GL11.glColor4f(1, 1, 1, 1);
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.startDrawingQuads();
+        tessellator.addVertexWithUV(x, y + 12, zLevel, 0, 1);
+        tessellator.addVertexWithUV(x + 12, y + 12, zLevel, 1, 1);
+        tessellator.addVertexWithUV(x + 12, y, zLevel, 1, 0);
+        tessellator.addVertexWithUV(x, y, zLevel, 0, 0);
+        tessellator.draw();
     }
 
     private int getMaxFitScale() {
@@ -311,6 +411,30 @@ public final class PicoRScreen extends GuiScreen {
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+        RoomClient client = RoomClient.INSTANCE;
+        RoomInfo room = client.room();
+        if (mouseButton == 0 && room != null && !isMouseOverHideHotspot(mouseX, mouseY)) {
+            if (mouseY >= 22 && mouseY < 36) {
+                if (mouseX >= 8 && mouseX < 108 && client.isHost()) {
+                    client.publish();
+                    return;
+                }
+                if (mouseX >= 112 && mouseX < 184) {
+                    client.leave(true);
+                    mc.displayGuiScreen(null);
+                    return;
+                }
+            }
+            int row = (mouseY - 40) / 18;
+            if (client.isHost() && mouseX >= 8
+                && mouseX < 20
+                && mouseY >= 40
+                && row < memberRows()
+                && firstMember + row < room.members.size()) {
+                client.toggleController(room.members.get(firstMember + row).id);
+                return;
+            }
+        }
         if (mouseButton == 0 && isInsideScaleHudButton(mouseX, mouseY, scaleHudTop)) {
             int maxScale = Integer.MAX_VALUE / PicoRRuntime.SCREEN_WIDTH;
             int currentScale = Math.max(0, Math.min(Pico8Config.screenScale, maxScale));
@@ -432,6 +556,7 @@ public final class PicoRScreen extends GuiScreen {
     }
 
     private void saveGameState() {
+        if (RoomClient.INSTANCE.active() && !RoomClient.INSTANCE.isHost()) return;
         if (session == null) {
             return;
         }
@@ -443,11 +568,13 @@ public final class PicoRScreen extends GuiScreen {
     }
 
     private void loadGameState() {
+        if (RoomClient.INSTANCE.active() && !RoomClient.INSTANCE.isHost()) return;
         if (session == null) {
             return;
         }
         try {
             if (session.loadSavedState()) {
+                if (RoomClient.INSTANCE.isHost()) RoomClient.INSTANCE.resetAfterLoad();
                 copyFrameToTexture();
                 lastFrameNanos = System.nanoTime();
             }
@@ -458,6 +585,10 @@ public final class PicoRScreen extends GuiScreen {
 
     @Override
     public void onGuiClosed() {
+        if (roomAttached) {
+            RoomClient.INSTANCE.leave(false);
+            roomAttached = false;
+        }
         if (session != null) {
             session.pause();
         }
@@ -472,6 +603,14 @@ public final class PicoRScreen extends GuiScreen {
     @Override
     public boolean doesGuiPauseGame() {
         return false;
+    }
+
+    @Override
+    public void handleMouseInput() {
+        super.handleMouseInput();
+        int wheel = org.lwjgl.input.Mouse.getEventDWheel();
+        if (wheel != 0 && org.lwjgl.input.Mouse.getEventX() * width / mc.displayWidth < 184)
+            firstMember += wheel < 0 ? 1 : -1;
     }
 
     private int readButtonBits(int player) {

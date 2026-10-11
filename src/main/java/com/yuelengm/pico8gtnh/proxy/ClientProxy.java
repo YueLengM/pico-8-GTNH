@@ -12,6 +12,8 @@ import com.yuelengm.pico8gtnh.client.command.Pico8ClientCommand;
 import com.yuelengm.pico8gtnh.config.Pico8Config;
 import com.yuelengm.pico8gtnh.gui.Pico8CartridgeScreen;
 import com.yuelengm.pico8gtnh.gui.PicoRScreen;
+import com.yuelengm.pico8gtnh.multiplayer.RoomClient;
+import com.yuelengm.pico8gtnh.multiplayer.RoomPacket;
 import com.yuelengm.pico8gtnh.service.PicoRSession;
 
 import cpw.mods.fml.common.FMLCommonHandler;
@@ -31,6 +33,9 @@ public class ClientProxy extends CommonProxy {
     @Override
     public void init(FMLInitializationEvent event) {
         super.init(event);
+        FMLCommonHandler.instance()
+            .bus()
+            .register(RoomClient.INSTANCE);
         Pico8ClientCommand command = new Pico8ClientCommand();
         ClientCommandHandler.instance.registerCommand(command);
         FMLCommonHandler.instance()
@@ -46,5 +51,10 @@ public class ClientProxy extends CommonProxy {
         } else {
             Pico8CartridgeScreen.open();
         }
+    }
+
+    @Override
+    public void receiveRoomPacket(RoomPacket packet) {
+        RoomClient.INSTANCE.enqueue(packet);
     }
 }
