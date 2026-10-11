@@ -7,7 +7,14 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.util.Arrays;
 import java.util.Collections;
+
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.lz4.LZ4SafeDecompressor;
+
+import com.yuelengm.pico8gtnh.Pico8GtnhMod;
 
 import io.github.kawamuray.wasmtime.Engine;
 import io.github.kawamuray.wasmtime.Func;
@@ -24,6 +31,16 @@ public final class PicoRRuntime implements AutoCloseable {
     public static final int SCREEN_WIDTH = 128;
     public static final int SCREEN_HEIGHT = 128;
     public static final int AUDIO_SAMPLE_RATE = 22050;
+    public static final int MAX_MEMORY_BYTES = 128 * 1024 * 1024;
+    private static final int WASM_PAGE_BYTES = 65536;
+    private static final byte[] ZERO_BYTES = new byte[8192];
+
+    private final LZ4Compressor snapshotCompressor = LZ4Factory.safeInstance()
+        .fastCompressor();
+    private final LZ4SafeDecompressor snapshotDecompressor = LZ4Factory.safeInstance()
+        .safeDecompressor();
+    private ByteBuffer snapshotScratch;
+
     private static final int MAX_AUDIO_SAMPLES = 4096;
 
     private final Engine engine;
@@ -214,6 +231,7 @@ public final class PicoRRuntime implements AutoCloseable {
 
     /** Restores a state previously returned by {@link #saveState()}. */
     public void loadState(byte[] state) {
+        Pico8GtnhMod.LOG.info("PICO-R load state");
         ensureCartLoaded();
         if (state == null || state.length == 0) {
             throw new IllegalArgumentException("Saved state must not be empty");
@@ -230,7 +248,9 @@ public final class PicoRRuntime implements AutoCloseable {
             }
             target.position(pointer);
             target.put(state);
-            loadStateFunction.call(store, Val.fromI32(pointer), Val.fromI32(state.length));
+            int result = callI32(loadStateFunction, Val.fromI32(pointer), Val.fromI32(state.length));
+            if (result != 0)
+                throw new IllegalStateException("PICO-R could not restore saved state (error " + result + ")");
         } finally {
             free.call(store, Val.fromI32(pointer), Val.fromI32(state.length));
         }
@@ -240,8 +260,70 @@ public final class PicoRRuntime implements AutoCloseable {
         return memory.size(store);
     }
 
+    /** Independent LZ4 snapshot of complete linear memory, taken between WASM calls. */
+    public byte[] saveMemoryState() {
+        ByteBuffer source = memoryBuffer();
+        int rawBytes = source.capacity();
+        if (rawBytes > MAX_MEMORY_BYTES) throw new IllegalStateException("WASM memory snapshot too large");
+        int maxCompressedBytes = snapshotCompressor.maxCompressedLength(rawBytes);
+        int capacity = Integer.BYTES + maxCompressedBytes;
+        if (snapshotScratch == null || snapshotScratch.capacity() < capacity)
+            snapshotScratch = ByteBuffer.allocate(capacity);
+        snapshotScratch.putInt(0, rawBytes);
+        int compressedBytes = snapshotCompressor
+            .compress(source, 0, rawBytes, snapshotScratch, Integer.BYTES, maxCompressedBytes);
+        // Only the result is retained; scratch storage is reused by subsequent frames.
+        return Arrays.copyOf(snapshotScratch.array(), Integer.BYTES + compressedBytes);
+    }
+
+    /** Copy between WASM calls; compression of this private copy may run asynchronously. */
+    public byte[] copyMemoryState(int audioRemainder) {
+        ByteBuffer source = memoryBuffer();
+        int length = source.capacity();
+        if (length > MAX_MEMORY_BYTES) throw new IllegalStateException("WASM memory snapshot too large");
+        byte[] state = new byte[8 + length];
+        ByteBuffer.wrap(state)
+            .putInt(audioRemainder)
+            .putInt(-length);
+        source.get(state, 8, length);
+        return state;
+    }
+
+    public void loadMemoryState(byte[] compressed) {
+        loadMemoryState(compressed, 0, compressed == null ? 0 : compressed.length);
+    }
+
+    /** Restore directly from an envelope without copying its memory payload. */
+    public void loadMemoryState(byte[] compressed, int offset, int length) {
+        if (compressed == null || offset < 0 || length <= Integer.BYTES || (long) offset + length > compressed.length)
+            throw new IllegalArgumentException("Invalid LZ4 snapshot");
+        ByteBuffer source = ByteBuffer.wrap(compressed);
+        int storedLength = source.getInt(offset);
+        int rawBytes = storedLength < 0 ? -storedLength : storedLength;
+        if (rawBytes <= 0 || rawBytes > MAX_MEMORY_BYTES || rawBytes % WASM_PAGE_BYTES != 0)
+            throw new IllegalArgumentException("Invalid WASM memory size");
+        if (storedLength < 0 && length != Integer.BYTES + rawBytes)
+            throw new IllegalArgumentException("Incomplete raw memory snapshot");
+        int pages = rawBytes / WASM_PAGE_BYTES;
+        if (memory.size(store) < pages) memory.grow(store, pages - memory.size(store));
+        ByteBuffer target = memoryBuffer();
+        if (target.capacity() < rawBytes) throw new IllegalStateException("Could not grow WASM memory");
+        int restoredBytes;
+        if (storedLength < 0) {
+            target.put(compressed, offset + Integer.BYTES, rawBytes);
+            restoredBytes = rawBytes;
+        } else restoredBytes = snapshotDecompressor
+            .decompress(source, offset + Integer.BYTES, length - Integer.BYTES, target, 0, rawBytes);
+        if (restoredBytes != rawBytes) throw new IllegalArgumentException("Incomplete LZ4 memory snapshot");
+        // Linear memory cannot shrink; clear pages that did not exist at the saved frame.
+        target.position(rawBytes);
+        while (target.hasRemaining()) target.put(ZERO_BYTES, 0, Math.min(ZERO_BYTES.length, target.remaining()));
+        cartLoaded = true;
+    }
+
     @Override
     public void close() {
+        snapshotScratch = null;
         generateAudio.dispose();
         getPixelBuffer.dispose();
         setButtons.dispose();

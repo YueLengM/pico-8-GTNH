@@ -2,6 +2,7 @@ package com.yuelengm.pico8gtnh.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 
 import javax.sound.sampled.LineUnavailableException;
@@ -21,6 +22,7 @@ public final class PicoRSession {
     private final PicoRAudioOutput audioOutput;
     private int audioSampleRemainder;
     private byte[] savedState;
+    private boolean closed;
 
     private PicoRSession(File cartFile, PicoRRuntime runtime, PicoRAudioOutput audioOutput) {
         this.cartFile = cartFile;
@@ -31,7 +33,7 @@ public final class PicoRSession {
     /** Resumes the matching session, or creates one if it is not currently loaded. */
     public static synchronized PicoRSession resume(File cartFile) throws IOException {
         File canonicalCart = cartFile.getCanonicalFile();
-        if (current != null && current.cartFile.equals(canonicalCart)) {
+        if (current != null && canonicalCart.equals(current.cartFile)) {
             current.resume();
             return current;
         }
@@ -74,13 +76,36 @@ public final class PicoRSession {
         return current == null ? null : current.cartFile;
     }
 
+    /** A room guest receives the loaded cartridge as part of the host's memory snapshot. */
+    public static synchronized PicoRSession startRoomGuest() throws IOException {
+        closeCurrent();
+        PicoRRuntime runtime = PicoRRuntime.loadBundled();
+        PicoRAudioOutput audio = null;
+        try {
+            audio = new PicoRAudioOutput();
+        } catch (LineUnavailableException | IllegalArgumentException exception) {
+            Pico8GtnhMod.LOG.error("Could not open PICO-8 audio output", exception);
+        }
+        current = new PicoRSession(null, runtime, audio);
+        return current;
+    }
+
     public PicoRRuntime getRuntime() {
         return runtime;
     }
 
+    public boolean isRoomGuest() {
+        return cartFile == null;
+    }
+
+    /** Only discard the expected session, never a subsequently loaded cartridge. */
+    public static synchronized void discard(PicoRSession expected) {
+        if (current == expected) closeCurrent();
+    }
+
     /** Saves a snapshot for the current cartridge session. */
     public boolean saveState() {
-        byte[] state = runtime.saveState();
+        byte[] state = saveRollbackState();
         if (state == null || state.length == 0) {
             return false;
         }
@@ -98,8 +123,7 @@ public final class PicoRSession {
             audioOutput.pause();
         }
         try {
-            runtime.loadState(savedState);
-            audioSampleRemainder = 0;
+            loadRollbackState(savedState);
             return true;
         } finally {
             if (audioOutput != null) {
@@ -109,15 +133,18 @@ public final class PicoRSession {
     }
 
     public void pause() {
+        if (closed) return;
         if (audioOutput != null) {
             audioOutput.pause();
         }
     }
 
     public void queueAudioFrame() {
-        if (audioOutput == null) {
-            return;
-        }
+        advanceAudioFrame(true);
+    }
+
+    /** Advances audio state even when playback is unavailable or a frame is being replayed. */
+    public void advanceAudioFrame(boolean audible) {
 
         int framesPerSecond = runtime.getFramesPerSecond();
         int sampleCount = PicoRRuntime.AUDIO_SAMPLE_RATE / framesPerSecond;
@@ -130,7 +157,36 @@ public final class PicoRSession {
         Minecraft minecraft = Minecraft.getMinecraft();
         float masterVolume = minecraft.gameSettings.getSoundLevel(SoundCategory.MASTER);
         float recordsVolume = minecraft.gameSettings.getSoundLevel(SoundCategory.RECORDS);
-        audioOutput.submit(runtime.generateAudio(sampleCount, masterVolume * recordsVolume));
+        byte[] pcm = runtime.generateAudio(sampleCount, masterVolume * recordsVolume);
+        if (audible && audioOutput != null) audioOutput.submit(pcm);
+    }
+
+    public AsyncSnapshot captureRollbackState() {
+        return AsyncSnapshot.submit(runtime.copyMemoryState(audioSampleRemainder));
+    }
+
+    /** LZ4 linear memory plus the host-side fractional audio sample counter. */
+    public byte[] saveRollbackState() {
+        byte[] state = runtime.saveMemoryState();
+        if (state == null) throw new IllegalStateException("Could not serialize PICO-R state");
+        return ByteBuffer.allocate(Integer.BYTES + state.length)
+            .putInt(audioSampleRemainder)
+            .put(state)
+            .array();
+    }
+
+    public void loadRollbackState(byte[] bytes) {
+        if (bytes.length <= Integer.BYTES) throw new IllegalArgumentException("Invalid rollback snapshot");
+        ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        int remainder = buffer.getInt();
+        runtime.loadMemoryState(bytes, Integer.BYTES, bytes.length - Integer.BYTES);
+        if (remainder < 0 || remainder >= runtime.getFramesPerSecond())
+            throw new IllegalArgumentException("Invalid audio counter");
+        audioSampleRemainder = remainder;
+        if (audioOutput != null) {
+            audioOutput.pause();
+            audioOutput.resume();
+        }
     }
 
     private void resume() {
@@ -139,11 +195,17 @@ public final class PicoRSession {
         }
     }
 
-    private static void closeCurrent() {
+    public static synchronized void closeCurrent() {
         if (current != null) {
-            current.audioOutputClose();
-            current.runtime.close();
+            PicoRSession previous = current;
             current = null;
+            previous.closed = true;
+            previous.savedState = null;
+            try {
+                previous.audioOutputClose();
+            } finally {
+                previous.runtime.close();
+            }
         }
     }
 

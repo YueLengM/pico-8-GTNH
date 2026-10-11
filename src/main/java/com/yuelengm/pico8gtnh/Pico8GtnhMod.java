@@ -5,6 +5,7 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.yuelengm.pico8gtnh.multiplayer.RoomServer;
 import com.yuelengm.pico8gtnh.proxy.CommonProxy;
 
 import cpw.mods.fml.common.Mod;
@@ -13,10 +14,16 @@ import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
+import cpw.mods.fml.common.event.FMLServerStoppedEvent;
 import cpw.mods.fml.common.network.NetworkCheckHandler;
 import cpw.mods.fml.relauncher.Side;
 
-@Mod(modid = Pico8GtnhMod.MODID, version = Tags.VERSION, name = "PICO-8", acceptedMinecraftVersions = "[1.7.10]")
+@Mod(
+    modid = Pico8GtnhMod.MODID,
+    version = Tags.VERSION,
+    name = "PICO-8",
+    acceptedMinecraftVersions = "[1.7.10]",
+    dependencies = "required:modularui2;required:gtnhlib")
 public class Pico8GtnhMod {
 
     public static final String MODID = "pico8";
@@ -69,6 +76,12 @@ public class Pico8GtnhMod {
     @Mod.EventHandler
     // register server commands in this event handler (Remove if not needed)
     public void serverStarting(FMLServerStartingEvent event) {
+        RoomServer.INSTANCE.clear();
         proxy.serverStarting(event);
+    }
+
+    @Mod.EventHandler
+    public void serverStopped(FMLServerStoppedEvent event) {
+        RoomServer.INSTANCE.clear();
     }
 }

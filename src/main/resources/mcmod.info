@@ -13,8 +13,8 @@
 		"logoFile": "pico8_console.png",
 		"screenshots": [],
 		"parent": "",
-		"requiredMods": ["modularui2"],
-		"dependencies": [],
+		"requiredMods": ["modularui2", "gtnhlib"],
+		"dependencies": ["modularui2", "gtnhlib"],
 		"dependants": [],
 		"useDependencyInformation": true
 	}]
